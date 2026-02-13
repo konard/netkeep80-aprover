@@ -28,11 +28,134 @@ import { normalize, toCanonicalString, astEqual } from './normalizer'
 /** Substitution: maps variable names to AST nodes */
 export type Substitution = Map<string, ASTNode>
 
+/** Axiom identifiers for МТС v0.1 */
+export type AxiomId =
+  | 'A0' // Definition
+  | 'A1' // Identity
+  | 'A4' // Infinity/aroot
+  | 'A5' // Male self-closing
+  | 'A6' // Female self-closing
+  | 'A7' // Inversion
+  | 'A11' // Left associativity
+  | 'UNIFY' // Unification
+  | 'STRUCT' // Structural comparison
+  | 'DEF_EXPAND' // Definition expansion
+  | 'NORMALIZE' // Normalization
+
+/** Axiom metadata */
+export interface AxiomInfo {
+  id: AxiomId
+  name: string
+  formula: string
+  description: string
+}
+
+/** Axiom registry */
+export const AXIOMS: Record<AxiomId, AxiomInfo> = {
+  A0: {
+    id: 'A0',
+    name: 'А0. Определение',
+    formula: '(s : F) → (s = F)',
+    description: 'Знак как запрос по форме',
+  },
+  A1: {
+    id: 'A1',
+    name: 'А1. Тождественность',
+    formula: 'x = x',
+    description: 'Рефлексивность равенства',
+  },
+  A4: {
+    id: 'A4',
+    name: 'А4. Смысл (акорень)',
+    formula: '∞ : (∞ → ∞)',
+    description: 'Полное самозамыкание',
+  },
+  A5: {
+    id: 'A5',
+    name: 'А5. Самозамыкание начала',
+    formula: '♂x : (♂x → x)',
+    description: 'Начало замкнуто на связь',
+  },
+  A6: {
+    id: 'A6',
+    name: 'А6. Самозамыкание конца',
+    formula: 'x♀ : (x → x♀)',
+    description: 'Конец замкнут на связь',
+  },
+  A7: {
+    id: 'A7',
+    name: 'А7. Инверсия',
+    formula: '!(a → b) = (b → a), !!x = x',
+    description: 'Дуальность инверсии',
+  },
+  A11: {
+    id: 'A11',
+    name: 'А11. Левоассоциативность',
+    formula: '(a → b → c) = ((a → b) → c)',
+    description: 'Порядок группировки',
+  },
+  UNIFY: {
+    id: 'UNIFY',
+    name: 'Унификация',
+    formula: 'σ(A) = σ(B)',
+    description: 'Структурная унификация с подстановкой',
+  },
+  STRUCT: {
+    id: 'STRUCT',
+    name: 'Структурное равенство',
+    formula: 'A ≡ B',
+    description: 'Прямое структурное сравнение',
+  },
+  DEF_EXPAND: {
+    id: 'DEF_EXPAND',
+    name: 'Раскрытие определения',
+    formula: 's → F (где s : F)',
+    description: 'Замена идентификатора на его определение',
+  },
+  NORMALIZE: {
+    id: 'NORMALIZE',
+    name: 'Нормализация',
+    formula: 'norm(A) = norm(B)',
+    description: 'Приведение к канонической форме',
+  },
+}
+
+/** Detailed proof step */
+export interface ProofStep {
+  /** Step number (1-based) */
+  number: number
+  /** Action description */
+  action: string
+  /** Axiom applied (if any) */
+  axiom?: AxiomInfo
+  /** Expression before transformation */
+  before?: string
+  /** Expression after transformation */
+  after?: string
+  /** Additional details */
+  details?: string
+}
+
+/** Hint for failed verification */
+export interface ProofHint {
+  /** Hint type */
+  type: 'missing_definition' | 'structure_mismatch' | 'unification_failed' | 'suggestion'
+  /** Hint message */
+  message: string
+  /** Suggested fix (if any) */
+  suggestion?: string
+}
+
 /** Proof result */
 export interface ProofResult {
   success: boolean
   message: string
+  /** Legacy simple steps for backwards compatibility */
   steps?: string[]
+  /** Detailed proof steps with axiom references */
+  proofSteps?: ProofStep[]
+  /** Hints for failed verification */
+  hints?: ProofHint[]
   substitution?: Substitution
 }
 
@@ -428,47 +551,198 @@ function applyFemaleAxiom(node: ASTNode): ASTNode | null {
 }
 
 /**
+ * Generate hints for failed equality proof
+ */
+function generateEqualityHints(
+  left: ASTNode,
+  right: ASTNode,
+  expLeft: ASTNode,
+  expRight: ASTNode,
+  state: ProverState
+): ProofHint[] {
+  const hints: ProofHint[] = []
+  const leftStr = toCanonicalString(left)
+  const rightStr = toCanonicalString(right)
+  const expLeftStr = toCanonicalString(expLeft)
+  const expRightStr = toCanonicalString(expRight)
+
+  // Check for undefined identifiers
+  const findUndefinedIdents = (node: ASTNode): string[] => {
+    const undefs: string[] = []
+    const checkNode = (n: ASTNode) => {
+      if (isIdentExpr(n) && !state.definitions.has(n.name) && n.name.length > 1) {
+        undefs.push(n.name)
+      }
+      if (isLinkExpr(n)) {
+        checkNode(n.left)
+        checkNode(n.right)
+      }
+      if (isMaleExpr(n) || isFemaleExpr(n) || isNotExpr(n)) {
+        checkNode(n.operand)
+      }
+    }
+    checkNode(node)
+    return [...new Set(undefs)]
+  }
+
+  const undefLeft = findUndefinedIdents(left)
+  const undefRight = findUndefinedIdents(right)
+  const allUndef = [...new Set([...undefLeft, ...undefRight])]
+
+  if (allUndef.length > 0) {
+    hints.push({
+      type: 'missing_definition',
+      message: `Идентификатор(ы) не определены: ${allUndef.join(', ')}`,
+      suggestion: `Добавьте определение: ${allUndef[0]} : <форма>.`,
+    })
+  }
+
+  // Check for structure mismatch
+  if (left.type !== right.type && expLeft.type !== expRight.type) {
+    hints.push({
+      type: 'structure_mismatch',
+      message: `Структуры не совпадают: ${left.type} ≠ ${right.type}`,
+      suggestion: 'Проверьте, что обе стороны имеют одинаковую структуру.',
+    })
+  }
+
+  // Suggest applicable axioms
+  if (isMaleExpr(expLeft) || isMaleExpr(expRight)) {
+    hints.push({
+      type: 'suggestion',
+      message: 'Присутствует ♂ символ. Рассмотрите аксиому А5: ♂x = (♂x → x).',
+    })
+  }
+
+  if (isFemaleExpr(expLeft) || isFemaleExpr(expRight)) {
+    hints.push({
+      type: 'suggestion',
+      message: 'Присутствует ♀ символ. Рассмотрите аксиому А6: x♀ = (x → x♀).',
+    })
+  }
+
+  if (isInfinityExpr(expLeft) || isInfinityExpr(expRight)) {
+    hints.push({
+      type: 'suggestion',
+      message: 'Присутствует ∞. Рассмотрите аксиому А4: ∞ = (∞ → ∞).',
+    })
+  }
+
+  // Check if unification failed due to conflicting bindings
+  if (leftStr !== rightStr && expLeftStr !== expRightStr) {
+    hints.push({
+      type: 'unification_failed',
+      message: `Унификация не удалась: ${expLeftStr} ≠ ${expRightStr}`,
+    })
+  }
+
+  return hints
+}
+
+/**
  * Check if equality holds using axioms and unification
  */
 export function checkEquality(left: ASTNode, right: ASTNode, state: ProverState): ProofResult {
+  const proofSteps: ProofStep[] = []
+  let stepNum = 1
+
+  // Helper to add a proof step
+  const addStep = (
+    action: string,
+    axiom?: AxiomInfo,
+    before?: string,
+    after?: string,
+    details?: string
+  ) => {
+    proofSteps.push({ number: stepNum++, action, axiom, before, after, details })
+  }
+
   // Normalize both sides
   const normLeft = normalize(left)
   const normRight = normalize(right)
+  const normLeftStr = toCanonicalString(normLeft)
+  const normRightStr = toCanonicalString(normRight)
 
-  state.trace.push(`Checking: ${toCanonicalString(normLeft)} = ${toCanonicalString(normRight)}`)
+  addStep(
+    'Нормализация выражений',
+    AXIOMS.NORMALIZE,
+    `${toCanonicalString(left)} = ${toCanonicalString(right)}`,
+    `${normLeftStr} = ${normRightStr}`,
+    'Приведение к канонической форме (раскрытие степеней, применение инверсий)'
+  )
+
+  state.trace.push(`Checking: ${normLeftStr} = ${normRightStr}`)
 
   // Direct structural equality
   if (astEqual(normLeft, normRight)) {
+    addStep(
+      'Структурное сравнение: выражения идентичны',
+      AXIOMS.STRUCT,
+      normLeftStr,
+      normRightStr,
+      'Левая и правая части совпадают после нормализации'
+    )
     return {
       success: true,
-      message: 'Structural equality',
+      message: 'Доказано структурным равенством',
       steps: ['Direct structural comparison'],
+      proofSteps,
     }
   }
 
   // Try expanding definitions
   const expLeft = expandDefinitions(normLeft, state)
   const expRight = expandDefinitions(normRight, state)
+  const expLeftStr = toCanonicalString(expLeft)
+  const expRightStr = toCanonicalString(expRight)
 
-  state.trace.push(
-    `After expansion: ${toCanonicalString(expLeft)} = ${toCanonicalString(expRight)}`
-  )
+  const defExpanded = expLeftStr !== normLeftStr || expRightStr !== normRightStr
+  if (defExpanded) {
+    addStep(
+      'Раскрытие определений',
+      AXIOMS.DEF_EXPAND,
+      `${normLeftStr} = ${normRightStr}`,
+      `${expLeftStr} = ${expRightStr}`,
+      'Замена идентификаторов на их определения'
+    )
+  }
+
+  state.trace.push(`After expansion: ${expLeftStr} = ${expRightStr}`)
 
   if (astEqual(expLeft, expRight)) {
+    addStep(
+      'Структурное сравнение: выражения идентичны после раскрытия',
+      AXIOMS.STRUCT,
+      expLeftStr,
+      expRightStr,
+      'Равенство после раскрытия определений'
+    )
     return {
       success: true,
-      message: 'Equal after definition expansion',
+      message: 'Доказано после раскрытия определений',
       steps: ['Expanded definitions', 'Structural comparison'],
+      proofSteps,
     }
   }
 
   // Try unification
   const subst = unify(expLeft, expRight)
   if (subst) {
+    const substEntries = Array.from(subst.entries())
+      .map(([k, v]) => `${k} ↦ ${toCanonicalString(v)}`)
+      .join(', ')
+    addStep(
+      'Унификация успешна',
+      AXIOMS.UNIFY,
+      `${expLeftStr} = ${expRightStr}`,
+      'σ применена',
+      substEntries ? `Подстановка: {${substEntries}}` : 'Пустая подстановка'
+    )
     return {
       success: true,
-      message: 'Unification successful',
+      message: 'Доказано унификацией',
       steps: ['Unification'],
+      proofSteps,
       substitution: subst,
     }
   }
@@ -478,20 +752,36 @@ export function checkEquality(left: ASTNode, right: ASTNode, state: ProverState)
   if (isMaleExpr(expLeft)) {
     const maleExp = applyMaleAxiom(expLeft)
     if (maleExp && astEqual(maleExp, expRight)) {
+      addStep(
+        'Применение аксиомы А5 (♂)',
+        AXIOMS.A5,
+        expLeftStr,
+        toCanonicalString(maleExp),
+        '♂x : (♂x → x) — самозамыкание начала'
+      )
       return {
         success: true,
-        message: 'Applied ♂ axiom',
+        message: 'Доказано по аксиоме А5 (♂x → ♂x → x)',
         steps: ['♂x : (♂x -> x)'],
+        proofSteps,
       }
     }
   }
   if (isMaleExpr(expRight)) {
     const maleExp = applyMaleAxiom(expRight)
     if (maleExp && astEqual(expLeft, maleExp)) {
+      addStep(
+        'Применение аксиомы А5 (♂) — обратное направление',
+        AXIOMS.A5,
+        expRightStr,
+        toCanonicalString(maleExp),
+        '♂x : (♂x → x) — самозамыкание начала'
+      )
       return {
         success: true,
-        message: 'Applied ♂ axiom (reversed)',
+        message: 'Доказано по аксиоме А5 (♂x → ♂x → x)',
         steps: ['♂x : (♂x -> x)'],
+        proofSteps,
       }
     }
   }
@@ -500,20 +790,36 @@ export function checkEquality(left: ASTNode, right: ASTNode, state: ProverState)
   if (isFemaleExpr(expLeft)) {
     const femaleExp = applyFemaleAxiom(expLeft)
     if (femaleExp && astEqual(femaleExp, expRight)) {
+      addStep(
+        'Применение аксиомы А6 (♀)',
+        AXIOMS.A6,
+        expLeftStr,
+        toCanonicalString(femaleExp),
+        'x♀ : (x → x♀) — самозамыкание конца'
+      )
       return {
         success: true,
-        message: 'Applied ♀ axiom',
+        message: 'Доказано по аксиоме А6 (x♀ → x → x♀)',
         steps: ['x♀ : (x -> x♀)'],
+        proofSteps,
       }
     }
   }
   if (isFemaleExpr(expRight)) {
     const femaleExp = applyFemaleAxiom(expRight)
     if (femaleExp && astEqual(expLeft, femaleExp)) {
+      addStep(
+        'Применение аксиомы А6 (♀) — обратное направление',
+        AXIOMS.A6,
+        expRightStr,
+        toCanonicalString(femaleExp),
+        'x♀ : (x → x♀) — самозамыкание конца'
+      )
       return {
         success: true,
-        message: 'Applied ♀ axiom (reversed)',
+        message: 'Доказано по аксиоме А6 (x♀ → x → x♀)',
         steps: ['x♀ : (x -> x♀)'],
+        proofSteps,
       }
     }
   }
@@ -526,10 +832,18 @@ export function checkEquality(left: ASTNode, right: ASTNode, state: ProverState)
       right: { type: 'Infinity' },
     }
     if (astEqual(infLink, expRight)) {
+      addStep(
+        'Применение аксиомы А4 (∞)',
+        AXIOMS.A4,
+        '∞',
+        '(∞ → ∞)',
+        '∞ : (∞ → ∞) — полное самозамыкание'
+      )
       return {
         success: true,
-        message: 'Applied ∞ axiom',
+        message: 'Доказано по аксиоме А4 (∞ → ∞ → ∞)',
         steps: ['∞ : (∞ -> ∞)'],
+        proofSteps,
       }
     }
   }
@@ -540,18 +854,39 @@ export function checkEquality(left: ASTNode, right: ASTNode, state: ProverState)
       right: { type: 'Infinity' },
     }
     if (astEqual(expLeft, infLink)) {
+      addStep(
+        'Применение аксиомы А4 (∞) — обратное направление',
+        AXIOMS.A4,
+        '(∞ → ∞)',
+        '∞',
+        '∞ : (∞ → ∞) — полное самозамыкание'
+      )
       return {
         success: true,
-        message: 'Applied ∞ axiom (reversed)',
+        message: 'Доказано по аксиоме А4 (∞ → ∞ → ∞)',
         steps: ['∞ : (∞ -> ∞)'],
+        proofSteps,
       }
     }
   }
 
+  // Generate hints for failed proof
+  const hints = generateEqualityHints(left, right, expLeft, expRight, state)
+
+  addStep(
+    'Доказательство не найдено',
+    undefined,
+    expLeftStr,
+    expRightStr,
+    'Не удалось применить ни одну аксиому для доказательства равенства'
+  )
+
   return {
     success: false,
-    message: 'Cannot prove equality',
+    message: 'Не удаётся доказать равенство',
     steps: state.trace,
+    proofSteps,
+    hints,
   }
 }
 
@@ -560,19 +895,64 @@ export function checkEquality(left: ASTNode, right: ASTNode, state: ProverState)
  */
 export function checkInequality(left: ASTNode, right: ASTNode, state: ProverState): ProofResult {
   const eqResult = checkEquality(left, right, state)
+  const proofSteps: ProofStep[] = []
+  let stepNum = 1
 
   if (!eqResult.success) {
+    proofSteps.push({
+      number: stepNum++,
+      action: 'Проверка равенства',
+      details: 'Пытаемся доказать равенство левой и правой части',
+    })
+    proofSteps.push({
+      number: stepNum++,
+      action: 'Равенство недоказуемо',
+      before: toCanonicalString(left),
+      after: toCanonicalString(right),
+      details: 'Не найдено доказательство равенства',
+    })
+    proofSteps.push({
+      number: stepNum++,
+      action: 'Неравенство выполняется',
+      details: 'Поскольку равенство недоказуемо, неравенство считается истинным',
+    })
     return {
       success: true,
-      message: 'Inequality holds (equality cannot be proven)',
+      message: 'Неравенство выполняется (равенство недоказуемо)',
       steps: ['Tried to prove equality', 'Failed', 'Therefore inequality holds'],
+      proofSteps,
     }
   }
 
+  proofSteps.push({
+    number: stepNum++,
+    action: 'Проверка равенства',
+    details: 'Пытаемся доказать равенство левой и правой части',
+  })
+  proofSteps.push({
+    number: stepNum++,
+    action: 'Равенство доказано!',
+    before: toCanonicalString(left),
+    after: toCanonicalString(right),
+    details: eqResult.message,
+  })
+  proofSteps.push({
+    number: stepNum++,
+    action: 'Неравенство не выполняется',
+    details: 'Поскольку равенство доказуемо, неравенство ложно',
+  })
+
   return {
     success: false,
-    message: 'Inequality does not hold (equality can be proven)',
+    message: 'Неравенство не выполняется (равенство доказуемо)',
     steps: eqResult.steps,
+    proofSteps,
+    hints: [
+      {
+        type: 'suggestion',
+        message: `Левая и правая части равны: ${eqResult.message}`,
+      },
+    ],
   }
 }
 
@@ -593,24 +973,66 @@ export function verify(node: ASTNode, state: ProverState): ProofResult {
   if (isDefExpr(normalized)) {
     // Add definition to state
     if (isIdentExpr(normalized.name)) {
-      state.definitions.set(normalized.name.name, normalized.form)
+      const name = normalized.name.name
+      const formStr = toCanonicalString(normalized.form)
+      state.definitions.set(name, normalized.form)
       return {
         success: true,
-        message: `Added definition: ${normalized.name.name}`,
+        message: `Определение добавлено: ${name}`,
         steps: ['Definition registered'],
+        proofSteps: [
+          {
+            number: 1,
+            action: 'Регистрация определения',
+            axiom: AXIOMS.A0,
+            details: `${name} : ${formStr}`,
+          },
+          {
+            number: 2,
+            action: 'Определение сохранено',
+            details: `Идентификатор "${name}" теперь раскрывается как ${formStr}`,
+          },
+        ],
       }
     }
     return {
       success: false,
-      message: 'Definition name must be an identifier',
+      message: 'Имя определения должно быть идентификатором',
       steps: [],
+      proofSteps: [
+        {
+          number: 1,
+          action: 'Ошибка определения',
+          details: 'Левая часть определения должна быть простым идентификатором',
+        },
+      ],
+      hints: [
+        {
+          type: 'suggestion',
+          message: 'Используйте простой идентификатор слева от ":"',
+          suggestion: 'mydef : <форма>.',
+        },
+      ],
     }
   }
 
   return {
     success: false,
-    message: `Cannot verify node of type: ${node.type}`,
+    message: `Не удаётся верифицировать узел типа: ${node.type}`,
     steps: [],
+    proofSteps: [
+      {
+        number: 1,
+        action: 'Неподдерживаемый тип выражения',
+        details: `Тип "${node.type}" не поддерживается для верификации`,
+      },
+    ],
+    hints: [
+      {
+        type: 'suggestion',
+        message: 'Поддерживаемые типы: равенство (=), неравенство (!=), определение (:)',
+      },
+    ],
   }
 }
 

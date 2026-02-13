@@ -302,4 +302,125 @@ r♀ = r -> r♀.
     await statementNode.click()
     await expect(toggleIndicator).toHaveText('▶')
   })
+
+  // Phase 2.4: Enhanced Prover Tests
+
+  test('should show expand toggle for proof steps', async ({ page }) => {
+    const editor = page.locator('.code-input')
+    await editor.fill('∞ = ∞ -> ∞.')
+
+    // Wait for result to appear
+    await expect(page.locator('.result-item')).toBeVisible()
+
+    // Should have expand toggle indicator
+    await expect(page.locator('.expand-toggle')).toBeVisible()
+  })
+
+  test('should expand proof details when clicking result', async ({ page }) => {
+    const editor = page.locator('.code-input')
+    await editor.fill('∞ = ∞ -> ∞.')
+
+    // Wait for result to appear
+    const resultItem = page.locator('.result-item')
+    await expect(resultItem).toBeVisible()
+
+    // Click to expand
+    await resultItem.locator('.result-header').click()
+
+    // Should show proof details section
+    await expect(page.locator('.proof-details')).toBeVisible()
+    await expect(page.locator('.proof-steps-header')).toBeVisible()
+  })
+
+  test('should display proof steps with axiom references', async ({ page }) => {
+    const editor = page.locator('.code-input')
+    await editor.fill('∞ = ∞ -> ∞.')
+
+    // Wait for result and expand it
+    const resultItem = page.locator('.result-item')
+    await expect(resultItem).toBeVisible()
+    await resultItem.locator('.result-header').click()
+
+    // Should show proof steps
+    await expect(page.locator('.proof-step').first()).toBeVisible()
+
+    // Should show axiom badge (A4 for infinity axiom)
+    await expect(page.locator('.step-axiom').first()).toBeVisible()
+  })
+
+  test('should display step transformations', async ({ page }) => {
+    const editor = page.locator('.code-input')
+    await editor.fill('♂v = ♂v -> v.')
+
+    // Wait for result and expand it
+    const resultItem = page.locator('.result-item')
+    await expect(resultItem).toBeVisible()
+    await resultItem.locator('.result-header').click()
+
+    // Should show transformation with before/after
+    await expect(page.locator('.step-transformation').first()).toBeVisible()
+  })
+
+  test('should show axiom info on proof steps', async ({ page }) => {
+    const editor = page.locator('.code-input')
+    await editor.fill('r♀ = r -> r♀.')
+
+    // Wait for result and expand it
+    const resultItem = page.locator('.result-item')
+    await expect(resultItem).toBeVisible()
+    await resultItem.locator('.result-header').click()
+
+    // Should show axiom information
+    await expect(page.locator('.step-axiom-info').first()).toBeVisible()
+    await expect(page.locator('.axiom-name').first()).toBeVisible()
+    await expect(page.locator('.axiom-formula').first()).toBeVisible()
+  })
+
+  test('should show hints for failed verification', async ({ page }) => {
+    const editor = page.locator('.code-input')
+    // Use a formula that will fail to prove
+    await editor.fill('♂∞ = ∞♀.')
+
+    // Wait for failed result and expand it
+    const resultItem = page.locator('.result-item.failure')
+    await expect(resultItem).toBeVisible()
+    await resultItem.locator('.result-header').click()
+
+    // Should show hints section
+    await expect(page.locator('.proof-hints')).toBeVisible()
+    await expect(page.locator('.hint-item').first()).toBeVisible()
+  })
+
+  test('should collapse proof details on second click', async ({ page }) => {
+    const editor = page.locator('.code-input')
+    await editor.fill('a = a.')
+
+    // Wait for result and expand it
+    const resultItem = page.locator('.result-item')
+    await expect(resultItem).toBeVisible()
+    await resultItem.locator('.result-header').click()
+
+    // Details should be visible
+    await expect(page.locator('.proof-details')).toBeVisible()
+
+    // Click again to collapse
+    await resultItem.locator('.result-header').click()
+
+    // Details should be hidden
+    await expect(page.locator('.proof-details')).not.toBeVisible()
+  })
+
+  test('should show definition registration steps', async ({ page }) => {
+    const editor = page.locator('.code-input')
+    await editor.fill('mydef : a -> b.')
+
+    // Wait for result and expand it
+    const resultItem = page.locator('.result-item')
+    await expect(resultItem).toBeVisible()
+    await resultItem.locator('.result-header').click()
+
+    // Should show definition registration step
+    await expect(page.locator('.proof-step').first()).toBeVisible()
+    await expect(page.locator('.step-action').first()).toContainText('Регистрация')
+  })
 })
