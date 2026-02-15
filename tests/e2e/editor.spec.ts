@@ -163,12 +163,13 @@ r♀ = r -> r♀
     // Initially visible
     await expect(page.locator('.ast-panel')).toBeVisible()
 
-    // Click toggle button to hide
-    await page.locator('.toggle-btn').click()
+    // Click AST toggle button (contains 'AST' text) to hide
+    const astToggle = page.locator('.toggle-btn').filter({ hasText: /AST/ })
+    await astToggle.click()
     await expect(page.locator('.ast-panel')).not.toBeVisible()
 
     // Click toggle button to show again
-    await page.locator('.toggle-btn').click()
+    await astToggle.click()
     await expect(page.locator('.ast-panel')).toBeVisible()
   })
 
