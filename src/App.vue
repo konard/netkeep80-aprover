@@ -25,6 +25,11 @@ import {
   type FileMetadata,
 } from './core/fileIO'
 import { stringAnumFileToMtl, visualizeConversion, type ConversionStep } from './core/stringAnum'
+import {
+  quatAnumFileToMtl,
+  visualizeQuatConversion,
+  type QuatConversionStep,
+} from './core/quatAnum'
 
 const input = ref(`// МТС — Ассоциативный прувер
 // Примеры аксиом и формул
@@ -75,6 +80,10 @@ const isDragOver = ref(false)
 const showConversion = ref(false)
 const conversionSteps = ref<ConversionStep[]>([])
 const originalAstrContent = ref<string | null>(null)
+
+// Quaternary anumber conversion state
+const quatConversionSteps = ref<QuatConversionStep[]>([])
+const originalAnumContent = ref<string | null>(null)
 
 // Application version from package.json (injected by Vite at build time)
 const appVersion = __APP_VERSION__
@@ -183,10 +192,27 @@ const loadFile = async (file: globalThis.File) => {
       const mtlContent = stringAnumFileToMtl(content)
       input.value = mtlContent
     } else if (ext === '.anum') {
-      // TODO: Phase 3.3 - quaternary notation support
+      // Quaternary anumber support
       currentFileType.value = 'anum'
-      error.value = 'Четверичная нотация (.anum) пока не поддерживается. Ожидается в Этапе 3.3.'
-      return
+      originalAnumContent.value = content
+      originalAstrContent.value = null
+
+      // Generate conversion visualization for first non-empty line
+      const lines = content.split('\n').filter(l => l.trim() && !l.trim().startsWith('//'))
+      if (lines.length > 0) {
+        quatConversionSteps.value = visualizeQuatConversion(lines[0].trim())
+        conversionSteps.value = [] // Clear string anum steps
+        showConversion.value = true
+      }
+
+      // Convert to .mtl format
+      try {
+        const mtlContent = quatAnumFileToMtl(content)
+        input.value = mtlContent
+      } catch (e) {
+        error.value = e instanceof Error ? e.message : 'Ошибка парсинга .anum файла'
+        return
+      }
     } else {
       // .mtl file - direct load
       currentFileType.value = 'mtl'
@@ -234,8 +260,10 @@ const handleNewFile = () => {
   currentFileName.value = null
   currentFileType.value = 'mtl'
   originalAstrContent.value = null
+  originalAnumContent.value = null
   showConversion.value = false
   conversionSteps.value = []
+  quatConversionSteps.value = []
   input.value = `// МТС — Ассоциативный прувер
 // Введите формулы для верификации
 
@@ -447,7 +475,7 @@ onUnmounted(() => {
         </div>
         <div class="toolbar-separator"></div>
         <button
-          v-if="currentFileType === 'astr'"
+          v-if="currentFileType === 'astr' || currentFileType === 'anum'"
           class="toggle-btn"
           :class="{ active: showConversion }"
           title="Показать процесс конвертации"
@@ -465,7 +493,7 @@ onUnmounted(() => {
     </header>
 
     <!-- Conversion panel for .astr files -->
-    <div v-if="showConversion && conversionSteps.length > 0" class="conversion-panel">
+    <div v-if="showConversion && conversionSteps.length > 0" class="conversion-panel astr-panel">
       <div class="conversion-header">
         <span class="conversion-title">🔄 Конвертация строковых ачисел</span>
         <span class="conversion-subtitle"
@@ -484,6 +512,47 @@ onUnmounted(() => {
             <div v-if="step.char" class="step-char">
               <span class="char-label">Символ:</span>
               <span class="char-value">'{{ step.char }}'</span>
+            </div>
+            <div class="step-description">{{ step.description }}</div>
+            <div class="step-formal">
+              <code>{{ step.formal }}</code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Conversion panel for .anum files (quaternary notation) -->
+    <div
+      v-if="showConversion && quatConversionSteps.length > 0"
+      class="conversion-panel anum-panel"
+    >
+      <div class="conversion-header anum-header">
+        <span class="conversion-title">🔢 Конвертация четверичных ачисел</span>
+        <span class="conversion-subtitle">Процесс преобразования: абиты → формальные запросы</span>
+      </div>
+      <div class="abit-legend">
+        <span class="legend-item"><code>[</code> = ♂∞</span>
+        <span class="legend-item"><code>]</code> = ∞♀</span>
+        <span class="legend-item"><code>1</code> = ♂∞ → ∞♀</span>
+        <span class="legend-item"><code>0</code> = ∞♀ → ♂∞</span>
+      </div>
+      <div class="conversion-steps">
+        <div
+          v-for="(step, index) in quatConversionSteps"
+          :key="index"
+          class="conversion-step"
+          :class="{ initial: index === 0 }"
+        >
+          <div class="step-number">{{ index === 0 ? '∞' : index }}</div>
+          <div class="step-content">
+            <div v-if="step.abit" class="step-char">
+              <span class="char-label">Абит:</span>
+              <span class="char-value abit-value">'{{ step.abit }}'</span>
+            </div>
+            <div v-if="step.definition && index > 0" class="step-definition">
+              <span class="def-label">≡</span>
+              <span class="def-value">{{ step.definition }}</span>
             </div>
             <div class="step-description">{{ step.description }}</div>
             <div class="step-formal">
@@ -1024,5 +1093,56 @@ body {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Quaternary anumber conversion panel styles */
+.anum-header {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.abit-legend {
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.legend-item code {
+  background: rgba(245, 158, 11, 0.3);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  font-weight: 600;
+  color: #fbbf24;
+  margin-right: 0.25rem;
+}
+
+.abit-value {
+  color: #f59e0b;
+}
+
+.step-definition {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.def-label {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.def-value {
+  font-size: 0.75rem;
+  font-family: 'JetBrains Mono', monospace;
+  color: #f59e0b;
 }
 </style>
