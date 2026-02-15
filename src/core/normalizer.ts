@@ -39,7 +39,8 @@ import {
   isInfinityExpr,
   isNumExpr,
   isIdentExpr,
-  isCharLitExpr,
+  isAbitLitExpr,
+  isStringLitExpr,
   isBracketExpr,
 } from './ast'
 
@@ -402,7 +403,7 @@ function normalizeNode(node: ASTNode, options: NormalizerOptions): ASTNode {
       elements: node.elements.map(el => normalizeNode(el, options)),
     }
   } else {
-    // Leaf nodes: Infinity, Num, Identifier, CharLit, Bracket
+    // Leaf nodes: Infinity, Num, Identifier, AbitLit, StringLit, Bracket
     normalized = node
   }
 
@@ -558,8 +559,11 @@ export function toCanonicalString(node: ASTNode): string {
   if (isIdentExpr(node)) {
     return node.name
   }
-  if (isCharLitExpr(node)) {
-    return `'${node.char}'`
+  if (isAbitLitExpr(node)) {
+    return `'${node.value}'`
+  }
+  if (isStringLitExpr(node)) {
+    return `"${node.value}"`
   }
   if (isBracketExpr(node)) {
     return node.side === 'left' ? '[' : ']'

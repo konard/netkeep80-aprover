@@ -24,12 +24,11 @@ import type {
   Statement,
   LinkExpr,
   InfinityExpr,
-  CharLitExpr,
+  AbitLitExpr,
   MaleExpr,
   FemaleExpr,
   SourceLocation,
 } from './ast'
-import { parseStringAnumLine } from './stringAnum'
 
 /** Valid abit characters in quaternary notation */
 export const VALID_ABITS = ['0', '1', '[', ']'] as const
@@ -130,8 +129,10 @@ function makeInfinity(loc?: SourceLocation): InfinityExpr {
   return { type: 'Infinity', loc }
 }
 
-// makeCharLit is available but currently unused - kept for future direct AST construction
-// when we might build abits directly without going through stringAnum module
+/** Create abit literal node */
+function makeAbitLit(value: string, loc?: SourceLocation): AbitLitExpr {
+  return { type: 'AbitLit', value, loc }
+}
 
 /** Create link node */
 function makeLink(left: ASTNode, right: ASTNode, loc?: SourceLocation): LinkExpr {
@@ -322,9 +323,7 @@ export function quatAnumToStringAnum(content: string): string {
 /**
  * Parse a single line of quaternary anumber to AST
  *
- * Builds a left-associative chain of links where each abit
- * becomes a CharLit node (since they are single characters).
- * This is consistent with how string anumbers work.
+ * Builds (∞ -> 'abits') where 'abits' is an AbitLit containing the abit sequence.
  */
 export function parseQuatAnumLine(
   line: string,
@@ -339,8 +338,30 @@ export function parseQuatAnumLine(
     return makeInfinity(loc)
   }
 
-  // Use the same approach as stringAnum - build chain of CharLit nodes
-  return parseStringAnumLine(cleaned, lineNumber, startOffset)
+  // Build (∞ -> 'cleaned') where cleaned contains only abit characters
+  const infLoc = makeLoc(lineNumber, 1, startOffset, lineNumber, 1, startOffset)
+  const inf = makeInfinity(infLoc)
+
+  const abitLoc = makeLoc(
+    lineNumber,
+    1,
+    startOffset,
+    lineNumber,
+    cleaned.length + 1,
+    startOffset + cleaned.length
+  )
+  const abitNode = makeAbitLit(cleaned, abitLoc)
+
+  const linkLoc = makeLoc(
+    lineNumber,
+    1,
+    startOffset,
+    lineNumber,
+    cleaned.length + 1,
+    startOffset + cleaned.length
+  )
+
+  return makeLink(inf, abitNode, linkLoc)
 }
 
 /**
@@ -428,15 +449,14 @@ export function parseQuatAnumExpr(content: string): ASTNode {
     throw new QuatAnumError(validation.error || 'Invalid content', validation.errorOffset || 0)
   }
 
-  const cleaned = cleanQuatAnum(content)
-  return parseStringAnumLine(cleaned, 1, 0)
+  return parseQuatAnumLine(content, 1, 0)
 }
 
 /**
  * Convert AST back to quaternary anumber format
  *
- * This extracts characters from left-associative chains of CharLit nodes
- * and validates that only valid abit characters are present.
+ * This extracts values from AbitLit nodes and validates that
+ * only valid abit characters are present.
  */
 export function toQuatAnum(node: ASTNode): string | null {
   const chars: string[] = []
@@ -449,24 +469,29 @@ export function toQuatAnum(node: ASTNode): string | null {
     if (n.type === 'Link') {
       const link = n as LinkExpr
       if (!traverse(link.left)) return false
-      if (link.right.type === 'CharLit') {
-        const char = (link.right as CharLitExpr).char
-        if (!isValidAbit(char)) {
-          return false
+      if (link.right.type === 'AbitLit') {
+        const value = (link.right as AbitLitExpr).value
+        // All characters in AbitLit must be valid abits
+        for (const char of value) {
+          if (!isValidAbit(char)) {
+            return false
+          }
         }
-        chars.push(char)
+        chars.push(value)
         return true
       }
       return false
     }
 
-    // Single CharLit at the end (edge case)
-    if (n.type === 'CharLit') {
-      const char = (n as CharLitExpr).char
-      if (!isValidAbit(char)) {
-        return false
+    // Single AbitLit at the end (edge case)
+    if (n.type === 'AbitLit') {
+      const value = (n as AbitLitExpr).value
+      for (const char of value) {
+        if (!isValidAbit(char)) {
+          return false
+        }
       }
-      chars.push(char)
+      chars.push(value)
       return true
     }
 

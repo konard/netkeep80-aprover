@@ -339,8 +339,10 @@ function getNodeLabel(node: ASTNode): string {
       return String((node as { value: number }).value)
     case 'Identifier':
       return (node as { name: string }).name
-    case 'CharLit':
-      return `'${(node as { char: string }).char}'`
+    case 'AbitLit':
+      return `'${(node as { value: string }).value}'`
+    case 'StringLit':
+      return `"${(node as { value: string }).value}"`
     case 'Bracket':
       return (node as { side: string }).side === 'left' ? '[' : ']'
     default:

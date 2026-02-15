@@ -79,10 +79,52 @@ describe('Lexer', () => {
       expect(tokenize('.')[0].type).toBe('DOT')
     })
 
-    it('should tokenize character literals', () => {
-      const tokens = tokenize("'c'")
-      expect(tokens[0].type).toBe('CHAR_LIT')
-      expect(tokens[0].value).toBe('c')
+    it('should tokenize abit literals (single quotes)', () => {
+      const tokens = tokenize("'01[]'")
+      expect(tokens[0].type).toBe('ABIT_LIT')
+      expect(tokens[0].value).toBe('01[]')
+    })
+
+    it('should tokenize single abit character', () => {
+      const tokens = tokenize("'0'")
+      expect(tokens[0].type).toBe('ABIT_LIT')
+      expect(tokens[0].value).toBe('0')
+    })
+
+    it('should tokenize abit sequence', () => {
+      const tokens = tokenize("'[01]'")
+      expect(tokens[0].type).toBe('ABIT_LIT')
+      expect(tokens[0].value).toBe('[01]')
+    })
+
+    it('should tokenize string literals (double quotes)', () => {
+      const tokens = tokenize('"hello"')
+      expect(tokens[0].type).toBe('STRING_LIT')
+      expect(tokens[0].value).toBe('hello')
+    })
+
+    it('should tokenize empty string literal', () => {
+      const tokens = tokenize('""')
+      expect(tokens[0].type).toBe('STRING_LIT')
+      expect(tokens[0].value).toBe('')
+    })
+
+    it('should tokenize string literal with UTF-8 characters', () => {
+      const tokens = tokenize('"связь"')
+      expect(tokens[0].type).toBe('STRING_LIT')
+      expect(tokens[0].value).toBe('связь')
+    })
+
+    it('should tokenize string literal with escape sequences', () => {
+      const tokens = tokenize('"a\\nb\\tc"')
+      expect(tokens[0].type).toBe('STRING_LIT')
+      expect(tokens[0].value).toBe('a\nb\tc')
+    })
+
+    it('should tokenize string literal with escaped quotes', () => {
+      const tokens = tokenize('"say \\"hello\\""')
+      expect(tokens[0].type).toBe('STRING_LIT')
+      expect(tokens[0].value).toBe('say "hello"')
     })
 
     it('should tokenize identifiers', () => {
@@ -186,8 +228,21 @@ describe('Lexer', () => {
       expect(() => tokenize('@')).toThrow(LexerError)
     })
 
-    it('should throw on unterminated char literal', () => {
-      expect(() => tokenize("'")).toThrow(LexerError)
+    it('should throw on unterminated abit literal', () => {
+      expect(() => tokenize("'01")).toThrow(LexerError)
+    })
+
+    it('should throw on empty abit literal', () => {
+      expect(() => tokenize("''")).toThrow(LexerError)
+    })
+
+    it('should throw on invalid abit character in single quotes', () => {
+      expect(() => tokenize("'abc'")).toThrow(LexerError)
+      expect(() => tokenize("'0a1'")).toThrow(LexerError)
+    })
+
+    it('should throw on unterminated string literal', () => {
+      expect(() => tokenize('"hello')).toThrow(LexerError)
     })
   })
 })

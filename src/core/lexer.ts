@@ -27,7 +27,8 @@ export type TokenType =
   | 'RBRACKET' // ]
   | 'COMMA' // ,
   | 'DOT' // .
-  | 'CHAR_LIT' // 'c'
+  | 'ABIT_LIT' // '...' (abit sequence: only [, 0, 1, ] characters)
+  | 'STRING_LIT' // "..." (string for string anumbers - UTF-8)
   | 'ID' // identifier
   | 'NAT' // natural number
   | 'EOF'
@@ -153,24 +154,80 @@ export class Lexer {
     return result
   }
 
-  /** Read character literal */
-  private readCharLit(): string {
+  /** Check if character is valid abit character: [, 0, 1, ] */
+  private isAbitChar(c: string): boolean {
+    return c === '[' || c === '0' || c === '1' || c === ']'
+  }
+
+  /** Read abit literal (sequence of [, 0, 1, ] characters in single quotes) */
+  private readAbitLit(): string {
     this.advance() // skip opening '
-    if (this.isEOF()) {
-      throw new LexerError('Unterminated character literal', this.line, this.column, this.pos)
+    let result = ''
+    while (!this.isEOF() && this.current() !== "'") {
+      const c = this.current()
+      if (!this.isAbitChar(c)) {
+        throw new LexerError(
+          `Invalid abit character: '${c}'. Only [, 0, 1, ] are allowed in abit literals`,
+          this.line,
+          this.column,
+          this.pos
+        )
+      }
+      result += c
+      this.advance()
     }
-    const char = this.current()
-    this.advance()
-    if (this.current() !== "'") {
-      throw new LexerError(
-        'Expected closing quote in character literal',
-        this.line,
-        this.column,
-        this.pos
-      )
+    if (this.isEOF()) {
+      throw new LexerError('Unterminated abit literal', this.line, this.column, this.pos)
+    }
+    if (result.length === 0) {
+      throw new LexerError('Empty abit literal', this.line, this.column, this.pos)
     }
     this.advance() // skip closing '
-    return char
+    return result
+  }
+
+  /** Read string literal (multiple characters in double quotes) */
+  private readStringLit(): string {
+    this.advance() // skip opening "
+    let result = ''
+    while (!this.isEOF() && this.current() !== '"') {
+      // Handle escape sequences
+      if (this.current() === '\\') {
+        this.advance()
+        if (this.isEOF()) {
+          throw new LexerError('Unterminated string literal', this.line, this.column, this.pos)
+        }
+        const escaped = this.current()
+        switch (escaped) {
+          case 'n':
+            result += '\n'
+            break
+          case 't':
+            result += '\t'
+            break
+          case 'r':
+            result += '\r'
+            break
+          case '\\':
+            result += '\\'
+            break
+          case '"':
+            result += '"'
+            break
+          default:
+            // For unknown escape sequences, just include the character as-is
+            result += escaped
+        }
+      } else {
+        result += this.current()
+      }
+      this.advance()
+    }
+    if (this.isEOF()) {
+      throw new LexerError('Unterminated string literal', this.line, this.column, this.pos)
+    }
+    this.advance() // skip closing "
+    return result
   }
 
   /** Get next token */
@@ -317,10 +374,17 @@ export class Lexer {
         this.advance()
         return { type: 'DOT', value: '.', loc: this.makeLoc(startLine, startColumn, startOffset) }
       case "'":
-        const char = this.readCharLit()
+        const abit = this.readAbitLit()
         return {
-          type: 'CHAR_LIT',
-          value: char,
+          type: 'ABIT_LIT',
+          value: abit,
+          loc: this.makeLoc(startLine, startColumn, startOffset),
+        }
+      case '"':
+        const str = this.readStringLit()
+        return {
+          type: 'STRING_LIT',
+          value: str,
           loc: this.makeLoc(startLine, startColumn, startOffset),
         }
     }

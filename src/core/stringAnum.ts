@@ -19,7 +19,7 @@ import type {
   Statement,
   LinkExpr,
   InfinityExpr,
-  CharLitExpr,
+  StringLitExpr,
   SourceLocation,
 } from './ast'
 
@@ -56,9 +56,9 @@ function makeInfinity(loc?: SourceLocation): InfinityExpr {
   return { type: 'Infinity', loc }
 }
 
-/** Create character literal node */
-function makeCharLit(char: string, loc?: SourceLocation): CharLitExpr {
-  return { type: 'CharLit', char, loc }
+/** Create string literal node */
+function makeStringLit(value: string, loc?: SourceLocation): StringLitExpr {
+  return { type: 'StringLit', value, loc }
 }
 
 /** Create link node */
@@ -85,8 +85,7 @@ function makeLoc(
  * Convert a single line of string anumber to AST
  *
  * An empty string produces just ∞
- * A single character "c" produces (∞ -> 'c')
- * A string "abc" produces ((∞ -> 'a') -> 'b') -> 'c')
+ * A string "s" produces (∞ -> "s") where "s" is a StringLit
  */
 export function parseStringAnumLine(
   line: string,
@@ -99,43 +98,30 @@ export function parseStringAnumLine(
     return makeInfinity(loc)
   }
 
-  // Start with ∞
+  // Build (∞ -> "string") where the whole string is a StringLit
   const infLoc = makeLoc(lineNumber, 1, startOffset, lineNumber, 1, startOffset)
-  let result: ASTNode = makeInfinity(infLoc)
+  const inf = makeInfinity(infLoc)
 
-  // Build left-associative chain: (((∞ -> c₁) -> c₂) -> ... -> cₙ)
-  let column = 1
-  let offset = startOffset
+  const strLoc = makeLoc(
+    lineNumber,
+    1,
+    startOffset,
+    lineNumber,
+    line.length + 1,
+    startOffset + line.length
+  )
+  const strNode = makeStringLit(line, strLoc)
 
-  // Use Array.from to properly handle Unicode characters
-  const chars = Array.from(line)
+  const linkLoc = makeLoc(
+    lineNumber,
+    1,
+    startOffset,
+    lineNumber,
+    line.length + 1,
+    startOffset + line.length
+  )
 
-  for (const char of chars) {
-    const charLoc = makeLoc(
-      lineNumber,
-      column,
-      offset,
-      lineNumber,
-      column + 1,
-      offset + char.length
-    )
-    const charNode = makeCharLit(char, charLoc)
-
-    const linkLoc = makeLoc(
-      result.loc?.start.line || lineNumber,
-      result.loc?.start.column || 1,
-      result.loc?.start.offset || startOffset,
-      lineNumber,
-      column + 1,
-      offset + char.length
-    )
-    result = makeLink(result, charNode, linkLoc)
-
-    column++
-    offset += char.length
-  }
-
-  return result
+  return makeLink(inf, strNode, linkLoc)
 }
 
 /**
@@ -219,11 +205,11 @@ export function parseStringAnumExpr(content: string): ASTNode {
 /**
  * Convert AST back to string anumber format
  *
- * This extracts characters from left-associative chains of CharLit nodes.
+ * This extracts string values from StringLit nodes.
  * Returns null if the AST doesn't represent a valid string anumber.
  */
 export function toStringAnum(node: ASTNode): string | null {
-  const chars: string[] = []
+  const parts: string[] = []
 
   function traverse(n: ASTNode): boolean {
     if (n.type === 'Infinity') {
@@ -233,16 +219,16 @@ export function toStringAnum(node: ASTNode): string | null {
     if (n.type === 'Link') {
       const link = n as LinkExpr
       if (!traverse(link.left)) return false
-      if (link.right.type === 'CharLit') {
-        chars.push((link.right as CharLitExpr).char)
+      if (link.right.type === 'StringLit') {
+        parts.push((link.right as StringLitExpr).value)
         return true
       }
       return false
     }
 
-    // Single CharLit at the end (edge case)
-    if (n.type === 'CharLit') {
-      chars.push((n as CharLitExpr).char)
+    // Single StringLit at the end (edge case)
+    if (n.type === 'StringLit') {
+      parts.push((n as StringLitExpr).value)
       return true
     }
 
@@ -250,7 +236,7 @@ export function toStringAnum(node: ASTNode): string | null {
   }
 
   if (traverse(node)) {
-    return chars.join('')
+    return parts.join('')
   }
   return null
 }
@@ -259,7 +245,7 @@ export function toStringAnum(node: ASTNode): string | null {
  * Check if an AST node represents a valid string anumber
  *
  * A valid string anumber is a left-associative chain of links
- * starting from ∞ with CharLit nodes on the right side.
+ * starting from ∞ with StringLit nodes on the right side.
  */
 export function isStringAnumExpr(node: ASTNode): boolean {
   return toStringAnum(node) !== null
@@ -268,23 +254,16 @@ export function isStringAnumExpr(node: ASTNode): boolean {
 /**
  * Convert string anumber to formal notation string
  *
- * Example: "ab" → "(∞ -> 'a') -> 'b'"
+ * Example: "hello" → "(∞ -> \"hello\")"
  */
 export function stringAnumToFormal(str: string): string {
   if (str.length === 0) {
     return '∞'
   }
 
-  const chars = Array.from(str)
-  let result = '∞'
-
-  for (const char of chars) {
-    // Escape single quote if needed
-    const escapedChar = char === "'" ? "\\'" : char
-    result = `(${result} -> '${escapedChar}')`
-  }
-
-  return result
+  // Escape double quote and backslash if needed
+  const escapedStr = str.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  return `(∞ -> "${escapedStr}")`
 }
 
 /**
@@ -330,10 +309,8 @@ export function stringAnumFileToMtl(content: string, options: StringAnumOptions 
  * the string is converted to a chain of links.
  */
 export interface ConversionStep {
-  /** Current character being processed */
-  char: string
-  /** Index of the character (0-based) */
-  index: number
+  /** String value being processed */
+  value: string
   /** Current chain in formal notation */
   formal: string
   /** Description of this step */
@@ -344,39 +321,27 @@ export function visualizeConversion(str: string): ConversionStep[] {
   if (str.length === 0) {
     return [
       {
-        char: '',
-        index: -1,
+        value: '',
         formal: '∞',
         description: 'Empty string equals akorern (∞)',
       },
     ]
   }
 
-  const steps: ConversionStep[] = []
-  const chars = Array.from(str)
-  let currentFormal = '∞'
+  const escapedStr = str.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 
-  steps.push({
-    char: '',
-    index: -1,
-    formal: currentFormal,
-    description: 'Start from akorern (∞)',
-  })
-
-  for (let i = 0; i < chars.length; i++) {
-    const char = chars[i]
-    const escapedChar = char === "'" ? "\\'" : char
-    currentFormal = `(${currentFormal} -> '${escapedChar}')`
-
-    steps.push({
-      char,
-      index: i,
-      formal: currentFormal,
-      description: `Link character '${char}' (index ${i})`,
-    })
-  }
-
-  return steps
+  return [
+    {
+      value: '',
+      formal: '∞',
+      description: 'Start from akorern (∞)',
+    },
+    {
+      value: str,
+      formal: `(∞ -> "${escapedStr}")`,
+      description: `Link string "${str}" (${str.length} characters)`,
+    },
+  ]
 }
 
 /**
