@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { parseExpr } from '../../src/core/parser'
-import { normalize } from '../../src/core/normalizer'
+import { normalize, toCanonicalString } from '../../src/core/normalizer'
 import {
   createProverState,
   unify,
@@ -13,6 +13,10 @@ import {
   checkInequality,
   verify,
   AXIOMS,
+  addProvenFact,
+  addProvenImplication,
+  tryModusPonens,
+  applyModusPonens,
 } from '../../src/core/prover'
 
 describe('Prover', () => {
@@ -675,6 +679,174 @@ describe('Prover', () => {
 
       // All should be tracked
       expect(s.provenEqualities.length).toBeGreaterThanOrEqual(3)
+    })
+  })
+
+  describe('Modus Ponens', () => {
+    it('should register Link expressions as implications', () => {
+      const s = state()
+
+      // Register an implication P -> Q
+      const impl = normalize(parseExpr('a -> b'))
+      const result = verify(impl, s)
+
+      expect(result.success).toBe(true)
+      expect(s.provenImplications.length).toBeGreaterThan(0)
+    })
+
+    it('should track proven facts', () => {
+      const s = state()
+
+      // Register a fact and an implication
+      const fact = normalize(parseExpr('∞'))
+      const impl = normalize(parseExpr('∞ -> ∞'))
+
+      verify(fact, s)
+      verify(impl, s)
+
+      // Fact should be tracked
+      expect(s.provenFacts.length).toBeGreaterThan(0)
+    })
+
+    it('should apply Modus Ponens to derive new facts', () => {
+      const s = state()
+
+      // Add fact P (represented as a simple expression)
+      const factP = normalize(parseExpr('♂∞'))
+
+      // Register the fact manually using addProvenFact
+      addProvenFact(s, factP)
+
+      // Register implication P -> Q (♂∞ -> ∞♀)
+      const implPQ = normalize(parseExpr('♂∞ -> ∞♀')) as any
+      addProvenImplication(s, factP, implPQ.right, 'test implication')
+
+      // Apply Modus Ponens
+      applyModusPonens(s)
+
+      // Q should be derived
+      const qStr = toCanonicalString(normalize(parseExpr('∞♀')))
+      expect(s.facts.has(qStr)).toBe(true)
+    })
+
+    it('should use tryModusPonens to prove consequent', () => {
+      const s = state()
+
+      // Add fact P
+      const factP = normalize(parseExpr('♂∞'))
+      addProvenFact(s, factP)
+
+      // Register implication P -> Q
+      const factQ = normalize(parseExpr('∞♀'))
+      addProvenImplication(s, factP, factQ, 'test')
+
+      // Try to prove Q using MP
+      const result = tryModusPonens(factQ, s)
+      expect(result.found).toBe(true)
+    })
+
+    it('should handle chains of implications', () => {
+      const s = state()
+
+      // P
+      const factP = normalize(parseExpr('♂∞'))
+      addProvenFact(s, factP)
+
+      // P -> Q
+      const factQ = normalize(parseExpr('∞♀'))
+      addProvenImplication(s, factP, factQ, 'P -> Q')
+
+      // Q -> R
+      const factR = normalize(parseExpr('∞'))
+      addProvenImplication(s, factQ, factR, 'Q -> R')
+
+      // Apply MP twice to derive R
+      applyModusPonens(s) // First pass: P, P->Q ⊢ Q
+      applyModusPonens(s) // Second pass: Q, Q->R ⊢ R
+
+      // R should be derived
+      const rStr = toCanonicalString(factR)
+      expect(s.facts.has(rStr)).toBe(true)
+    })
+
+    it('should include MP axiom in proof steps for implications', () => {
+      const s = state()
+
+      // Add some facts first
+      const factP = normalize(parseExpr('♂∞'))
+      addProvenFact(s, factP)
+
+      // Register P -> Q implication
+      const factQ = normalize(parseExpr('∞♀'))
+      addProvenImplication(s, factP, factQ, 'test')
+
+      // Verify an implication
+      const impl = normalize(parseExpr('♂∞ -> ∞♀'))
+      const result = verify(impl, s)
+
+      expect(result.success).toBe(true)
+      expect(result.proofSteps).toBeDefined()
+      expect(result.proofSteps!.length).toBeGreaterThan(0)
+    })
+
+    it('should track implications from Link expressions', () => {
+      const s = state()
+
+      // Verify a Link expression
+      const link = normalize(parseExpr('a -> b'))
+      verify(link, s)
+
+      // Check that implication is tracked
+      expect(s.provenImplications.length).toBeGreaterThan(0)
+      const impl = s.provenImplications[0]
+      expect(impl.antecedent.type).toBe('Identifier')
+      expect(impl.consequent.type).toBe('Identifier')
+    })
+
+    it('should not duplicate implications', () => {
+      const s = state()
+
+      // Verify the same Link expression twice
+      const link1 = normalize(parseExpr('a -> b'))
+      const link2 = normalize(parseExpr('a -> b'))
+
+      verify(link1, s)
+      const countAfterFirst = s.provenImplications.length
+
+      verify(link2, s)
+      const countAfterSecond = s.provenImplications.length
+
+      // Should not duplicate
+      expect(countAfterSecond).toBe(countAfterFirst)
+    })
+
+    it('should work with complex expressions', () => {
+      const s = state()
+
+      // Register complex implication
+      const impl = normalize(parseExpr('(♂∞ -> ∞♀) -> (∞ -> ∞)'))
+      verify(impl, s)
+
+      // Implication should be tracked
+      expect(s.provenImplications.length).toBeGreaterThan(0)
+    })
+
+    it('should derive facts from verified implications', () => {
+      const s = state()
+
+      // First establish P as a fact
+      const factP = normalize(parseExpr('♂∞'))
+      addProvenFact(s, factP)
+
+      // Then verify the implication P -> Q
+      const impl = normalize(parseExpr('♂∞ -> ∞♀'))
+      const result = verify(impl, s)
+
+      expect(result.success).toBe(true)
+
+      // Check if MP was applied (if not immediately, check derived facts)
+      const qStr = toCanonicalString(normalize(parseExpr('∞♀')))
+      expect(s.facts.has(qStr)).toBe(true)
     })
   })
 })

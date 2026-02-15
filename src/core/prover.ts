@@ -44,6 +44,7 @@ export type AxiomId =
   | 'A9' // Нуль смысла: 0 : !1
   | 'A10' // Абиты: '[' : ♂∞, ']' : ∞♀, '1' : 1, '0' : 0
   | 'A11' // Левоассоциативность: (a -> b -> c) = ((a -> b) -> c)
+  | 'MP' // Modus Ponens: если P и (P → Q), то Q
 
 /**
  * Axiom information for display
@@ -131,6 +132,12 @@ export const AXIOMS: Record<AxiomId, AxiomInfo> = {
     formula: '(a → b → c) = ((a → b) → c)',
     description: 'Порядок группировки',
   },
+  MP: {
+    id: 'MP',
+    name: 'Modus Ponens',
+    formula: 'P, (P → Q) ⊢ Q',
+    description: 'Правило вывода: из P и (P → Q) следует Q',
+  },
 }
 
 /**
@@ -185,6 +192,13 @@ export interface ProvenEquality {
   normalized: boolean
 }
 
+/** Proven implication for Modus Ponens */
+export interface ProvenImplication {
+  antecedent: ASTNode // P in (P → Q)
+  consequent: ASTNode // Q in (P → Q)
+  source: string // Where this implication came from
+}
+
 /** Prover state */
 export interface ProverState {
   /** Built-in axioms as (P -> Q) links */
@@ -193,8 +207,12 @@ export interface ProverState {
   definitions: Map<string, ASTNode>
   /** Proven facts (canonical string form) */
   facts: Set<string>
+  /** Proven facts as AST nodes for Modus Ponens */
+  provenFacts: ASTNode[]
   /** Proven equalities for transitivity/congruence */
   provenEqualities: ProvenEquality[]
+  /** Proven implications for Modus Ponens */
+  provenImplications: ProvenImplication[]
   /** Proof trace for debugging */
   trace: string[]
 }
@@ -207,7 +225,9 @@ export function createProverState(): ProverState {
     axioms: [],
     definitions: new Map(),
     facts: new Set(),
+    provenFacts: [],
     provenEqualities: [],
+    provenImplications: [],
     trace: [],
   }
 
@@ -973,6 +993,207 @@ export function addProvenEquality(state: ProverState, left: ASTNode, right: ASTN
 }
 
 /**
+ * Add a proven fact to the state for Modus Ponens
+ */
+export function addProvenFact(state: ProverState, fact: ASTNode): void {
+  const normFact = normalize(fact)
+  const factStr = toCanonicalString(normFact)
+
+  // Check if this fact is already proven
+  if (state.facts.has(factStr)) {
+    return
+  }
+
+  state.facts.add(factStr)
+  state.provenFacts.push(normFact)
+
+  // If this is a Link expression (implication), add it to implications
+  if (isLinkExpr(normFact)) {
+    addProvenImplication(state, normFact.left, normFact.right, 'proven fact')
+  }
+}
+
+/**
+ * Add a proven implication to the state for Modus Ponens
+ */
+export function addProvenImplication(
+  state: ProverState,
+  antecedent: ASTNode,
+  consequent: ASTNode,
+  source: string
+): void {
+  const normAnt = normalize(antecedent)
+  const normCons = normalize(consequent)
+  const antStr = toCanonicalString(normAnt)
+  const consStr = toCanonicalString(normCons)
+
+  // Check if this implication already exists
+  for (const impl of state.provenImplications) {
+    const implAntStr = toCanonicalString(impl.antecedent)
+    const implConsStr = toCanonicalString(impl.consequent)
+    if (antStr === implAntStr && consStr === implConsStr) {
+      return
+    }
+  }
+
+  state.provenImplications.push({
+    antecedent: normAnt,
+    consequent: normCons,
+    source,
+  })
+}
+
+/**
+ * Try to prove a fact using Modus Ponens.
+ * If we have proven P and (P → Q), then we can prove Q.
+ *
+ * This function searches for matching implications and applies MP.
+ */
+export function tryModusPonens(
+  goal: ASTNode,
+  state: ProverState
+): {
+  found: boolean
+  antecedent?: ASTNode
+  implication?: ProvenImplication
+  chain?: { fact: ASTNode; implication: ProvenImplication }[]
+} {
+  const normGoal = normalize(goal)
+  const goalStr = toCanonicalString(normGoal)
+
+  // Check if goal is already a proven fact
+  if (state.facts.has(goalStr)) {
+    return { found: true }
+  }
+
+  // Search for an implication (P → goal) where P is proven
+  for (const impl of state.provenImplications) {
+    const consStr = toCanonicalString(impl.consequent)
+
+    // Check if consequent matches goal
+    if (consStr === goalStr || astEqual(impl.consequent, normGoal)) {
+      // Check if antecedent is proven
+      const antStr = toCanonicalString(impl.antecedent)
+      if (state.facts.has(antStr)) {
+        return {
+          found: true,
+          antecedent: impl.antecedent,
+          implication: impl,
+        }
+      }
+
+      // Try to prove antecedent recursively (with depth limit to avoid infinite loops)
+      const antResult = tryModusPonensChain(impl.antecedent, state, 5)
+      if (antResult.found) {
+        return {
+          found: true,
+          antecedent: impl.antecedent,
+          implication: impl,
+          chain: antResult.chain,
+        }
+      }
+    }
+
+    // Also try unification
+    const subst = unify(impl.consequent, normGoal)
+    if (subst && subst.size > 0) {
+      const substAnt = applySubstitution(impl.antecedent, subst)
+      const substAntStr = toCanonicalString(normalize(substAnt))
+      if (state.facts.has(substAntStr)) {
+        return {
+          found: true,
+          antecedent: substAnt,
+          implication: impl,
+        }
+      }
+    }
+  }
+
+  return { found: false }
+}
+
+/**
+ * Try to prove a fact using a chain of Modus Ponens applications.
+ * This allows proving P → Q → R when we have P and (P → Q) and (Q → R).
+ */
+function tryModusPonensChain(
+  goal: ASTNode,
+  state: ProverState,
+  maxDepth: number
+): {
+  found: boolean
+  chain?: { fact: ASTNode; implication: ProvenImplication }[]
+} {
+  if (maxDepth <= 0) {
+    return { found: false }
+  }
+
+  const normGoal = normalize(goal)
+  const goalStr = toCanonicalString(normGoal)
+
+  // Base case: goal is already proven
+  if (state.facts.has(goalStr)) {
+    return { found: true, chain: [] }
+  }
+
+  // Search for an implication (P → goal)
+  for (const impl of state.provenImplications) {
+    const consStr = toCanonicalString(impl.consequent)
+
+    if (consStr === goalStr || astEqual(impl.consequent, normGoal)) {
+      // Try to prove antecedent recursively
+      const antResult = tryModusPonensChain(impl.antecedent, state, maxDepth - 1)
+      if (antResult.found) {
+        const chain = antResult.chain || []
+        chain.push({ fact: impl.antecedent, implication: impl })
+        return { found: true, chain }
+      }
+    }
+  }
+
+  return { found: false }
+}
+
+/**
+ * Apply Modus Ponens to derive new facts from proven implications.
+ * Returns the list of newly derived facts.
+ */
+export function applyModusPonens(state: ProverState): ASTNode[] {
+  const derivedFacts: ASTNode[] = []
+  let changed = true
+
+  // Keep applying MP until no new facts can be derived
+  while (changed) {
+    changed = false
+
+    for (const impl of state.provenImplications) {
+      const antStr = toCanonicalString(impl.antecedent)
+      const consStr = toCanonicalString(impl.consequent)
+
+      // If antecedent is proven and consequent is not, derive consequent
+      if (state.facts.has(antStr) && !state.facts.has(consStr)) {
+        state.facts.add(consStr)
+        state.provenFacts.push(impl.consequent)
+        derivedFacts.push(impl.consequent)
+        changed = true
+
+        // If the derived fact is itself an implication, add it
+        if (isLinkExpr(impl.consequent)) {
+          addProvenImplication(
+            state,
+            impl.consequent.left,
+            impl.consequent.right,
+            'derived via MP'
+          )
+        }
+      }
+    }
+  }
+
+  return derivedFacts
+}
+
+/**
  * Check if equality holds using axioms and unification
  */
 export function checkEquality(left: ASTNode, right: ASTNode, state: ProverState): ProofResult {
@@ -1536,10 +1757,59 @@ export function verify(node: ASTNode, state: ProverState): ProofResult {
     }
   }
 
+  // Handle Link expressions (implications) using Modus Ponens
+  if (isLinkExpr(normalized)) {
+    const proofSteps: ProofStep[] = []
+    const appliedAxioms: AxiomInfo[] = []
+
+    // Register this implication in the state
+    addProvenImplication(state, normalized.left, normalized.right, 'input expression')
+    addProvenFact(state, normalized)
+
+    proofSteps.push({
+      index: 1,
+      action: 'Регистрация импликации',
+      details: `(${toCanonicalString(normalized.left)} → ${toCanonicalString(normalized.right)})`,
+    })
+
+    // Try to apply Modus Ponens to derive new facts
+    const derivedFacts = applyModusPonens(state)
+
+    if (derivedFacts.length > 0) {
+      appliedAxioms.push(AXIOMS.MP)
+      proofSteps.push({
+        index: 2,
+        action: 'Применение Modus Ponens',
+        details: `Выведено ${derivedFacts.length} новых фактов: ${derivedFacts.map(f => toCanonicalString(f)).join(', ')}`,
+        axiom: AXIOMS.MP,
+      })
+    }
+
+    // Check if the consequent can be proven via MP
+    const mpResult = tryModusPonens(normalized.right, state)
+    if (mpResult.found && mpResult.antecedent) {
+      appliedAxioms.push(AXIOMS.MP)
+      proofSteps.push({
+        index: proofSteps.length + 1,
+        action: 'Применение Modus Ponens',
+        details: `Из ${toCanonicalString(mpResult.antecedent)} и импликации выводится ${toCanonicalString(normalized.right)}`,
+        axiom: AXIOMS.MP,
+      })
+    }
+
+    return {
+      success: true,
+      message: `Импликация зарегистрирована: (${toCanonicalString(normalized.left)} → ${toCanonicalString(normalized.right)})`,
+      steps: ['Implication registered'],
+      proofSteps,
+      appliedAxioms,
+    }
+  }
+
   const hints: VerificationHint[] = [
     {
       type: 'suggestion',
-      message: `Поддерживаемые типы выражений: равенство (=), неравенство (!=), определение (:)`,
+      message: `Поддерживаемые типы выражений: равенство (=), неравенство (!=), определение (:), импликация (→)`,
     },
   ]
 
