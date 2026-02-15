@@ -14,7 +14,7 @@ import {
   visualizeConversion,
   getStringAnumStats,
 } from '../../src/core/stringAnum'
-import type { LinkExpr, InfinityExpr, CharLitExpr } from '../../src/core/ast'
+import type { LinkExpr, InfinityExpr, StringLitExpr } from '../../src/core/ast'
 
 describe('StringAnum Parser', () => {
   describe('parseStringAnumLine', () => {
@@ -28,46 +28,44 @@ describe('StringAnum Parser', () => {
       expect(ast.type).toBe('Link')
       const link = ast as LinkExpr
       expect(link.left.type).toBe('Infinity')
-      expect(link.right.type).toBe('CharLit')
-      expect((link.right as CharLitExpr).char).toBe('a')
+      expect(link.right.type).toBe('StringLit')
+      expect((link.right as StringLitExpr).value).toBe('a')
     })
 
-    it('should parse two characters as left-associative chain', () => {
+    it('should parse string as single StringLit', () => {
       const ast = parseStringAnumLine('ab')
       expect(ast.type).toBe('Link')
       const link = ast as LinkExpr
-      // Right should be 'b'
-      expect(link.right.type).toBe('CharLit')
-      expect((link.right as CharLitExpr).char).toBe('b')
-      // Left should be (∞ -> 'a')
-      expect(link.left.type).toBe('Link')
-      const innerLink = link.left as LinkExpr
-      expect(innerLink.left.type).toBe('Infinity')
-      expect(innerLink.right.type).toBe('CharLit')
-      expect((innerLink.right as CharLitExpr).char).toBe('a')
+      // The whole string should be a single StringLit
+      expect(link.left.type).toBe('Infinity')
+      expect(link.right.type).toBe('StringLit')
+      expect((link.right as StringLitExpr).value).toBe('ab')
     })
 
     it('should parse multi-character string correctly', () => {
       const ast = parseStringAnumLine('abc')
-      // Should be ((∞ -> 'a') -> 'b') -> 'c'
+      // Should be (∞ -> "abc")
       expect(ast.type).toBe('Link')
       const link = ast as LinkExpr
-      expect((link.right as CharLitExpr).char).toBe('c')
+      expect(link.right.type).toBe('StringLit')
+      expect((link.right as StringLitExpr).value).toBe('abc')
     })
 
     it('should handle UTF-8 characters', () => {
       const ast = parseStringAnumLine('связь')
       expect(ast.type).toBe('Link')
-      // Should be (((((∞ -> 'с') -> 'в') -> 'я') -> 'з') -> 'ь')
+      // Should be (∞ -> "связь")
       const link = ast as LinkExpr
-      expect((link.right as CharLitExpr).char).toBe('ь')
+      expect(link.right.type).toBe('StringLit')
+      expect((link.right as StringLitExpr).value).toBe('связь')
     })
 
     it('should handle emoji characters', () => {
       const ast = parseStringAnumLine('👋')
       expect(ast.type).toBe('Link')
       const link = ast as LinkExpr
-      expect((link.right as CharLitExpr).char).toBe('👋')
+      expect(link.right.type).toBe('StringLit')
+      expect((link.right as StringLitExpr).value).toBe('👋')
     })
 
     it('should preserve source locations', () => {
@@ -174,26 +172,26 @@ describe('StringAnum Parser', () => {
     })
 
     it('should convert single character', () => {
-      expect(stringAnumToFormal('a')).toBe("(∞ -> 'a')")
+      expect(stringAnumToFormal('a')).toBe('(∞ -> "a")')
     })
 
-    it('should convert two characters', () => {
-      expect(stringAnumToFormal('ab')).toBe("((∞ -> 'a') -> 'b')")
+    it('should convert multi-character string', () => {
+      expect(stringAnumToFormal('ab')).toBe('(∞ -> "ab")')
     })
 
     it('should convert three characters', () => {
-      expect(stringAnumToFormal('abc')).toBe("(((∞ -> 'a') -> 'b') -> 'c')")
+      expect(stringAnumToFormal('abc')).toBe('(∞ -> "abc")')
     })
 
     it('should handle UTF-8 characters', () => {
-      expect(stringAnumToFormal('йо')).toBe("((∞ -> 'й') -> 'о')")
+      expect(stringAnumToFormal('йо')).toBe('(∞ -> "йо")')
     })
   })
 
   describe('stringAnumFileToMtl', () => {
     it('should convert simple file', () => {
       const result = stringAnumFileToMtl('hello')
-      expect(result).toContain("(((((∞ -> 'h') -> 'e') -> 'l') -> 'l') -> 'o').")
+      expect(result).toContain('(∞ -> "hello").')
     })
 
     it('should preserve comments', () => {
@@ -208,8 +206,8 @@ describe('StringAnum Parser', () => {
 
     it('should handle multiple lines', () => {
       const result = stringAnumFileToMtl('ab\ncd')
-      expect(result).toContain("((∞ -> 'a') -> 'b').")
-      expect(result).toContain("((∞ -> 'c') -> 'd').")
+      expect(result).toContain('(∞ -> "ab").')
+      expect(result).toContain('(∞ -> "cd").')
     })
   })
 
@@ -222,12 +220,10 @@ describe('StringAnum Parser', () => {
 
     it('should show all steps for conversion', () => {
       const steps = visualizeConversion('ab')
-      expect(steps.length).toBe(3) // initial (∞) + 2 characters
+      expect(steps.length).toBe(2) // initial (∞) + string link
       expect(steps[0].formal).toBe('∞')
-      expect(steps[1].char).toBe('a')
-      expect(steps[1].formal).toBe("(∞ -> 'a')")
-      expect(steps[2].char).toBe('b')
-      expect(steps[2].formal).toBe("((∞ -> 'a') -> 'b')")
+      expect(steps[1].value).toBe('ab')
+      expect(steps[1].formal).toBe('(∞ -> "ab")')
     })
 
     it('should include step descriptions', () => {
@@ -269,9 +265,9 @@ describe('StringAnum Parser', () => {
 
 describe('String Anumber Integration', () => {
   it('should correctly model МТС documentation example', () => {
-    // From docs: "связь" ≡ (((((∞ -> 'с') -> 'в') -> 'я') -> 'з') -> 'ь')
+    // String literals are now in double quotes as a single unit
     const formal = stringAnumToFormal('связь')
-    expect(formal).toBe("(((((∞ -> 'с') -> 'в') -> 'я') -> 'з') -> 'ь')")
+    expect(formal).toBe('(∞ -> "связь")')
   })
 
   it('should round-trip arbitrary UTF-8 strings', () => {
@@ -285,9 +281,9 @@ describe('String Anumber Integration', () => {
   })
 
   it('should handle special characters correctly', () => {
-    const special = "a'b"
+    const special = 'a"b'
     const formal = stringAnumToFormal(special)
-    // The quote should be escaped
-    expect(formal).toContain("'\\''")
+    // The double quote should be escaped
+    expect(formal).toContain('\\"')
   })
 })

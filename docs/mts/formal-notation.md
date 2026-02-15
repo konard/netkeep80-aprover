@@ -67,7 +67,7 @@ Pow       = "^" , Nat ;
 
 Atom      = Const
           | Id
-          | CharLit
+          | AbitLit
           | StringLit
           | Set
           | "(" , Expr , ")" ;
@@ -75,8 +75,9 @@ Atom      = Const
 Set       = "{" , Expr , { "," , Expr } , "}" ;
 
 Const     = "∞" | "0" | "1" | "[" | "]" ;
-CharLit   = "'" , Utf8Char , "'" ;       (* одинарные кавычки для четверичных абитов *)
-StringLit = '"' , { Utf8Char } , '"' ;   (* двойные кавычки для строковых ачисел *)
+AbitLit   = "'" , { AbitChar } , "'" ;   (* одинарные кавычки для абитовых ачисел: [, 0, 1, ] *)
+AbitChar  = "[" | "0" | "1" | "]" ;
+StringLit = '"' , { Utf8Char } , '"' ;   (* двойные кавычки для строковых ачисел (UTF-8) *)
 Id        = Letter , { Letter | Digit | "_" } ;
 Nat       = Digit , { Digit } ;
 ```

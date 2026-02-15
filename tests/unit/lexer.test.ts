@@ -79,10 +79,22 @@ describe('Lexer', () => {
       expect(tokenize('.')[0].type).toBe('DOT')
     })
 
-    it('should tokenize character literals (single quotes)', () => {
-      const tokens = tokenize("'c'")
-      expect(tokens[0].type).toBe('CHAR_LIT')
-      expect(tokens[0].value).toBe('c')
+    it('should tokenize abit literals (single quotes)', () => {
+      const tokens = tokenize("'01[]'")
+      expect(tokens[0].type).toBe('ABIT_LIT')
+      expect(tokens[0].value).toBe('01[]')
+    })
+
+    it('should tokenize single abit character', () => {
+      const tokens = tokenize("'0'")
+      expect(tokens[0].type).toBe('ABIT_LIT')
+      expect(tokens[0].value).toBe('0')
+    })
+
+    it('should tokenize abit sequence', () => {
+      const tokens = tokenize("'[01]'")
+      expect(tokens[0].type).toBe('ABIT_LIT')
+      expect(tokens[0].value).toBe('[01]')
     })
 
     it('should tokenize string literals (double quotes)', () => {
@@ -216,8 +228,17 @@ describe('Lexer', () => {
       expect(() => tokenize('@')).toThrow(LexerError)
     })
 
-    it('should throw on unterminated char literal', () => {
-      expect(() => tokenize("'")).toThrow(LexerError)
+    it('should throw on unterminated abit literal', () => {
+      expect(() => tokenize("'01")).toThrow(LexerError)
+    })
+
+    it('should throw on empty abit literal', () => {
+      expect(() => tokenize("''")).toThrow(LexerError)
+    })
+
+    it('should throw on invalid abit character in single quotes', () => {
+      expect(() => tokenize("'abc'")).toThrow(LexerError)
+      expect(() => tokenize("'0a1'")).toThrow(LexerError)
     })
 
     it('should throw on unterminated string literal', () => {

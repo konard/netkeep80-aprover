@@ -23,10 +23,23 @@ describe('Parser', () => {
       expect((ast as any).name).toBe('x')
     })
 
-    it('should parse character literals (single quotes for quaternary abits)', () => {
-      const ast = parseExpr("'a'")
-      expect(ast.type).toBe('CharLit')
-      expect((ast as any).char).toBe('a')
+    it('should parse abit literals (single quotes for quaternary abits)', () => {
+      const ast = parseExpr("'01[]'")
+      expect(ast.type).toBe('AbitLit')
+      expect((ast as any).value).toBe('01[]')
+    })
+
+    it('should parse single abit character', () => {
+      const ast = parseExpr("'0'")
+      expect(ast.type).toBe('AbitLit')
+      expect((ast as any).value).toBe('0')
+    })
+
+    it('should parse abit sequence in expression context', () => {
+      const ast = parseExpr("'[01]' -> '[]'")
+      expect(ast.type).toBe('Link')
+      expect((ast as any).left.type).toBe('AbitLit')
+      expect((ast as any).right.type).toBe('AbitLit')
     })
 
     it('should parse string literals (double quotes for string anums)', () => {

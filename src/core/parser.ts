@@ -13,11 +13,12 @@
  * Chain     ::= Pref { ("->" | "!->") Pref }  // left-associative
  * Pref      ::= { "!" | "¬" | "♂" } Post
  * Post      ::= Atom { "♀" | "^" Nat }
- * Atom      ::= Const | Id | CharLit | StringLit | Set | "(" Expr ")"
+ * Atom      ::= Const | Id | AbitLit | StringLit | Set | "(" Expr ")"
  * Set       ::= "{" Expr { "," Expr } "}"
  * Const     ::= "∞" | "0" | "1" | "[" | "]"
- * CharLit   ::= "'" Utf8Char "'"   // single char for quaternary abits
+ * AbitLit   ::= "'" { AbitChar } "'" // sequence of [, 0, 1, ] for abit anumbers
  * StringLit ::= '"' { Utf8Char } '"' // string for string anumbers
+ * AbitChar  ::= "[" | "0" | "1" | "]"
  */
 
 import type { Token, TokenType } from './lexer'
@@ -39,7 +40,7 @@ import type {
   InfinityExpr,
   NumExpr,
   IdentExpr,
-  CharLitExpr,
+  AbitLitExpr,
   StringLitExpr,
   BracketExpr,
   SourceLocation,
@@ -343,7 +344,7 @@ export class Parser {
     return node
   }
 
-  /** Parse atom: Const | Id | CharLit | Set | "(" Expr ")" */
+  /** Parse atom: Const | Id | AbitLit | StringLit | Set | "(" Expr ")" */
   private parseAtom(): ASTNode {
     const token = this.current()
 
@@ -385,10 +386,10 @@ export class Parser {
       return { type: 'Identifier', name: token.value, loc: token.loc } as IdentExpr
     }
 
-    // Character literal (single character in single quotes - for quaternary abits)
-    if (this.check('CHAR_LIT')) {
+    // Abit literal (sequence of [, 0, 1, ] in single quotes - for abit anumbers)
+    if (this.check('ABIT_LIT')) {
       this.advance()
-      return { type: 'CharLit', char: token.value, loc: token.loc } as CharLitExpr
+      return { type: 'AbitLit', value: token.value, loc: token.loc } as AbitLitExpr
     }
 
     // String literal (multiple characters in double quotes - for string anumbers)

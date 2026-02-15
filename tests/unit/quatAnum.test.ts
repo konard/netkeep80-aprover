@@ -23,7 +23,7 @@ import {
   ABIT_DEFINITIONS,
   VALID_ABITS,
 } from '../../src/core/quatAnum'
-import type { LinkExpr, InfinityExpr, CharLitExpr } from '../../src/core/ast'
+import type { LinkExpr, InfinityExpr, AbitLitExpr } from '../../src/core/ast'
 
 describe('QuatAnum Core Functions', () => {
   describe('isValidAbit', () => {
@@ -175,26 +175,26 @@ describe('QuatAnum AST Parsing', () => {
       expect(ast.type).toBe('Link')
       const link = ast as LinkExpr
       expect(link.left.type).toBe('Infinity')
-      expect(link.right.type).toBe('CharLit')
-      expect((link.right as CharLitExpr).char).toBe('0')
+      expect(link.right.type).toBe('AbitLit')
+      expect((link.right as AbitLitExpr).value).toBe('0')
     })
 
-    it('should parse abit sequence as left-associative chain', () => {
+    it('should parse abit sequence as single AbitLit', () => {
       const ast = parseQuatAnumLine('01')
       expect(ast.type).toBe('Link')
       const link = ast as LinkExpr
-      // Right should be '1'
-      expect(link.right.type).toBe('CharLit')
-      expect((link.right as CharLitExpr).char).toBe('1')
-      // Left should be (∞ -> '0')
-      expect(link.left.type).toBe('Link')
+      // The whole sequence should be a single AbitLit
+      expect(link.left.type).toBe('Infinity')
+      expect(link.right.type).toBe('AbitLit')
+      expect((link.right as AbitLitExpr).value).toBe('01')
     })
 
     it('should handle brackets in sequence', () => {
       const ast = parseQuatAnumLine('[]')
       expect(ast.type).toBe('Link')
       const link = ast as LinkExpr
-      expect((link.right as CharLitExpr).char).toBe(']')
+      expect(link.right.type).toBe('AbitLit')
+      expect((link.right as AbitLitExpr).value).toBe('[]')
     })
   })
 
@@ -291,11 +291,11 @@ describe('QuatAnum Conversion', () => {
     })
 
     it('should return null if non-abit characters present', () => {
-      // Create AST with non-abit character
+      // Create AST with non-abit character (invalid in AbitLit)
       const ast = {
         type: 'Link',
         left: { type: 'Infinity' },
-        right: { type: 'CharLit', char: 'a' },
+        right: { type: 'AbitLit', value: 'abc' },
       }
       expect(toQuatAnum(ast)).toBeNull()
     })
