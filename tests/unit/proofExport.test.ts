@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import { parseExpr } from '../../src/core/parser'
 import { normalize } from '../../src/core/normalizer'
-import { createProverState, verify, type ProofResult, type ProofStep, AXIOMS } from '../../src/core/prover'
+import { createProverState, verify, type ProofResult } from '../../src/core/prover'
 import type { ASTNode } from '../../src/core/ast'
 import {
   exportToLaTeX,
@@ -21,18 +21,12 @@ import {
   type ProofExportData,
 } from '../../src/core/proofExport'
 
-// Helper to create a proof result
-function createProofResult(success: boolean, message: string, steps?: ProofStep[]): ProofResult {
-  return {
-    success,
-    message,
-    proofSteps: steps || [],
-    appliedAxioms: [],
-  }
-}
-
 // Helper to get proof result for an expression
-function verifyExpression(expr: string): { result: ProofResult; goal: ASTNode; state: ReturnType<typeof createProverState> } {
+function verifyExpression(expr: string): {
+  result: ProofResult
+  goal: ASTNode
+  state: ReturnType<typeof createProverState>
+} {
   const state = createProverState()
   const goal = normalize(parseExpr(expr))
   const result = verify(goal, state)
