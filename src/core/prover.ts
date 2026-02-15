@@ -178,6 +178,13 @@ export interface ProofResult {
   substitution?: Substitution
 }
 
+/** Proven equality pair for transitivity/congruence resolution */
+export interface ProvenEquality {
+  left: ASTNode
+  right: ASTNode
+  normalized: boolean
+}
+
 /** Prover state */
 export interface ProverState {
   /** Built-in axioms as (P -> Q) links */
@@ -186,6 +193,8 @@ export interface ProverState {
   definitions: Map<string, ASTNode>
   /** Proven facts (canonical string form) */
   facts: Set<string>
+  /** Proven equalities for transitivity/congruence */
+  provenEqualities: ProvenEquality[]
   /** Proof trace for debugging */
   trace: string[]
 }
@@ -198,6 +207,7 @@ export function createProverState(): ProverState {
     axioms: [],
     definitions: new Map(),
     facts: new Set(),
+    provenEqualities: [],
     trace: [],
   }
 
@@ -793,6 +803,176 @@ function generateEqualityHints(
 }
 
 /**
+ * Check if two nodes are equal considering proven equalities in the state.
+ * This uses symmetry: if (x = y) is proven, then (y = x) is also valid.
+ */
+function checkWithProvenEqualities(
+  left: ASTNode,
+  right: ASTNode,
+  state: ProverState
+): { found: boolean; symmetric: boolean } {
+  const leftStr = toCanonicalString(left)
+  const rightStr = toCanonicalString(right)
+
+  for (const eq of state.provenEqualities) {
+    const eqLeftStr = toCanonicalString(eq.left)
+    const eqRightStr = toCanonicalString(eq.right)
+
+    // Direct match
+    if (leftStr === eqLeftStr && rightStr === eqRightStr) {
+      return { found: true, symmetric: false }
+    }
+
+    // Symmetric match (A1: symmetry)
+    if (leftStr === eqRightStr && rightStr === eqLeftStr) {
+      return { found: true, symmetric: true }
+    }
+  }
+
+  return { found: false, symmetric: false }
+}
+
+/**
+ * Try to prove equality using transitivity.
+ * If we have proven (a = b) and (b = c), then we can prove (a = c).
+ * A1: {(x = y), (y = z)} → (x = z)
+ */
+function tryTransitivity(
+  left: ASTNode,
+  right: ASTNode,
+  state: ProverState
+): { found: boolean; intermediate?: ASTNode } {
+  const leftStr = toCanonicalString(left)
+  const rightStr = toCanonicalString(right)
+
+  // For each proven equality (a = b), check if:
+  // - left matches a and we have (b = right) proven
+  // - left matches b and we have (a = right) proven (using symmetry)
+  for (const eq1 of state.provenEqualities) {
+    const eq1LeftStr = toCanonicalString(eq1.left)
+    const eq1RightStr = toCanonicalString(eq1.right)
+
+    // Case 1: left = eq1.left, and eq1.right = right
+    if (leftStr === eq1LeftStr) {
+      const intermediate = eq1.right
+      const intermediateStr = eq1RightStr
+
+      for (const eq2 of state.provenEqualities) {
+        const eq2LeftStr = toCanonicalString(eq2.left)
+        const eq2RightStr = toCanonicalString(eq2.right)
+
+        if (intermediateStr === eq2LeftStr && rightStr === eq2RightStr) {
+          return { found: true, intermediate }
+        }
+        // Also check symmetric version of eq2
+        if (intermediateStr === eq2RightStr && rightStr === eq2LeftStr) {
+          return { found: true, intermediate }
+        }
+      }
+    }
+
+    // Case 2: left = eq1.right (using symmetry for eq1)
+    if (leftStr === eq1RightStr) {
+      const intermediate = eq1.left
+      const intermediateStr = eq1LeftStr
+
+      for (const eq2 of state.provenEqualities) {
+        const eq2LeftStr = toCanonicalString(eq2.left)
+        const eq2RightStr = toCanonicalString(eq2.right)
+
+        if (intermediateStr === eq2LeftStr && rightStr === eq2RightStr) {
+          return { found: true, intermediate }
+        }
+        if (intermediateStr === eq2RightStr && rightStr === eq2LeftStr) {
+          return { found: true, intermediate }
+        }
+      }
+    }
+  }
+
+  return { found: false }
+}
+
+/**
+ * Try to prove equality using congruence.
+ * A2: {(a = c), (b = d)} → ((a → b) = (c → d))
+ *
+ * If left and right are both Link expressions, and we can prove
+ * their components are equal, then we can prove the links are equal.
+ */
+function tryCongruence(
+  left: ASTNode,
+  right: ASTNode,
+  state: ProverState
+): {
+  found: boolean
+  leftParts?: { a: ASTNode; b: ASTNode }
+  rightParts?: { c: ASTNode; d: ASTNode }
+} {
+  if (!isLinkExpr(left) || !isLinkExpr(right)) {
+    return { found: false }
+  }
+
+  const a = left.left
+  const b = left.right
+  const c = right.left
+  const d = right.right
+
+  // Check if (a = c) is proven or can be trivially shown
+  const acEqual =
+    astEqual(a, c) ||
+    checkWithProvenEqualities(a, c, state).found ||
+    checkWithProvenEqualities(c, a, state).found
+
+  // Check if (b = d) is proven or can be trivially shown
+  const bdEqual =
+    astEqual(b, d) ||
+    checkWithProvenEqualities(b, d, state).found ||
+    checkWithProvenEqualities(d, b, state).found
+
+  if (acEqual && bdEqual) {
+    return {
+      found: true,
+      leftParts: { a, b },
+      rightParts: { c, d },
+    }
+  }
+
+  return { found: false }
+}
+
+/**
+ * Add a proven equality to the state for future transitivity/congruence resolution
+ */
+export function addProvenEquality(state: ProverState, left: ASTNode, right: ASTNode): void {
+  const normLeft = normalize(left)
+  const normRight = normalize(right)
+
+  // Check if this equality is already proven
+  const leftStr = toCanonicalString(normLeft)
+  const rightStr = toCanonicalString(normRight)
+
+  for (const eq of state.provenEqualities) {
+    const eqLeftStr = toCanonicalString(eq.left)
+    const eqRightStr = toCanonicalString(eq.right)
+
+    // Already have this equality (or its symmetric version)
+    if (
+      (leftStr === eqLeftStr && rightStr === eqRightStr) ||
+      (leftStr === eqRightStr && rightStr === eqLeftStr)
+    ) {
+      return
+    }
+  }
+
+  state.provenEqualities.push({
+    left: normLeft,
+    right: normRight,
+    normalized: true,
+  })
+}
+
+/**
  * Check if equality holds using axioms and unification
  */
 export function checkEquality(left: ASTNode, right: ASTNode, state: ProverState): ProofResult {
@@ -1155,6 +1335,71 @@ export function checkEquality(left: ASTNode, right: ASTNode, state: ProverState)
     }
   }
 
+  // Try using previously proven equalities with symmetry (A1)
+  const provenCheck = checkWithProvenEqualities(expLeft, expRight, state)
+  if (provenCheck.found) {
+    appliedAxioms.push(AXIOMS.A1)
+    proofSteps.push({
+      index: proofSteps.length + 1,
+      action: provenCheck.symmetric
+        ? 'Применение симметрии равенства (А1)'
+        : 'Использование ранее доказанного равенства',
+      details: provenCheck.symmetric
+        ? `Из (${toCanonicalString(expRight)} = ${toCanonicalString(expLeft)}) следует (${toCanonicalString(expLeft)} = ${toCanonicalString(expRight)})`
+        : `Равенство уже было доказано ранее`,
+      axiom: AXIOMS.A1,
+    })
+    return {
+      success: true,
+      message: provenCheck.symmetric
+        ? 'Применена симметрия равенства (А1)'
+        : 'Использовано ранее доказанное равенство',
+      steps: ['Previously proven equality'],
+      proofSteps,
+      appliedAxioms,
+    }
+  }
+
+  // Try transitivity (A1): if (a = b) and (b = c) then (a = c)
+  const transitivityResult = tryTransitivity(expLeft, expRight, state)
+  if (transitivityResult.found && transitivityResult.intermediate) {
+    appliedAxioms.push(AXIOMS.A1)
+    proofSteps.push({
+      index: proofSteps.length + 1,
+      action: 'Применение транзитивности равенства (А1)',
+      details: `Из (${toCanonicalString(expLeft)} = ${toCanonicalString(transitivityResult.intermediate)}) и (${toCanonicalString(transitivityResult.intermediate)} = ${toCanonicalString(expRight)}) следует (${toCanonicalString(expLeft)} = ${toCanonicalString(expRight)})`,
+      axiom: AXIOMS.A1,
+    })
+    return {
+      success: true,
+      message: 'Применена транзитивность равенства (А1)',
+      steps: ['Transitivity'],
+      proofSteps,
+      appliedAxioms,
+    }
+  }
+
+  // Try congruence (A2): if (a = c) and (b = d) then (a -> b) = (c -> d)
+  const congruenceResult = tryCongruence(expLeft, expRight, state)
+  if (congruenceResult.found && congruenceResult.leftParts && congruenceResult.rightParts) {
+    appliedAxioms.push(AXIOMS.A2)
+    const { a, b } = congruenceResult.leftParts
+    const { c, d } = congruenceResult.rightParts
+    proofSteps.push({
+      index: proofSteps.length + 1,
+      action: 'Применение конгруэнции (А2)',
+      details: `Из (${toCanonicalString(a)} = ${toCanonicalString(c)}) и (${toCanonicalString(b)} = ${toCanonicalString(d)}) следует ((${toCanonicalString(a)} → ${toCanonicalString(b)}) = (${toCanonicalString(c)} → ${toCanonicalString(d)}))`,
+      axiom: AXIOMS.A2,
+    })
+    return {
+      success: true,
+      message: 'Применена конгруэнция (А2)',
+      steps: ['Congruence'],
+      proofSteps,
+      appliedAxioms,
+    }
+  }
+
   // Generate hints for failed verification
   const hints = generateEqualityHints(left, right, expLeft, expRight)
 
@@ -1243,7 +1488,12 @@ export function verify(node: ASTNode, state: ProverState): ProofResult {
   const normalized = normalize(node)
 
   if (isEqExpr(normalized)) {
-    return checkEquality(normalized.left, normalized.right, state)
+    const result = checkEquality(normalized.left, normalized.right, state)
+    // If equality was proven, add it to the state for future transitivity/congruence
+    if (result.success) {
+      addProvenEquality(state, normalized.left, normalized.right)
+    }
+    return result
   }
 
   if (isNeqExpr(normalized)) {

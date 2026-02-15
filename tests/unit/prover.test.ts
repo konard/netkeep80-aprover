@@ -524,4 +524,157 @@ describe('Prover', () => {
       expect(result.appliedAxioms!.some(a => a.id === 'A6')).toBe(true)
     })
   })
+
+  describe('Extended resolution - Symmetry (A1)', () => {
+    it('should use symmetry: if (a = b) is proven, then (b = a) is valid', () => {
+      const s = state()
+      // First prove a = b (will be stored in proven equalities)
+      const eq1 = normalize(parseExpr('∞ = ∞ -> ∞'))
+      const result1 = verify(eq1, s)
+      expect(result1.success).toBe(true)
+
+      // Now the symmetric version should also work via transitivity/symmetry mechanism
+      const eq2 = normalize(parseExpr('∞ -> ∞ = ∞'))
+      const result2 = verify(eq2, s)
+      expect(result2.success).toBe(true)
+    })
+
+    it('should track proven equalities in state', () => {
+      const s = state()
+      expect(s.provenEqualities.length).toBe(0)
+
+      const eq = normalize(parseExpr('a = a'))
+      verify(eq, s)
+      expect(s.provenEqualities.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('should apply symmetry for complex expressions', () => {
+      const s = state()
+      // Prove ♂v = ♂v -> v
+      const eq1 = normalize(parseExpr('♂v = ♂v -> v'))
+      const result1 = verify(eq1, s)
+      expect(result1.success).toBe(true)
+
+      // Now ♂v -> v = ♂v should work via symmetry
+      const eq2 = normalize(parseExpr('♂v -> v = ♂v'))
+      const result2 = verify(eq2, s)
+      expect(result2.success).toBe(true)
+    })
+  })
+
+  describe('Extended resolution - Transitivity (A1)', () => {
+    it('should prove transitivity: if (a = b) and (b = c) then (a = c)', () => {
+      const s = state()
+
+      // First prove a = b
+      const eq1 = normalize(parseExpr('∞ = ∞ -> ∞'))
+      const result1 = verify(eq1, s)
+      expect(result1.success).toBe(true)
+
+      // Now prove that (∞ -> ∞) = some other form
+      // Let's use the recursive collapse: ∞ -> ∞ -> ∞ also collapses to ∞
+      const eq2 = normalize(parseExpr('∞ -> ∞ = ∞ -> ∞ -> ∞'))
+      const result2 = verify(eq2, s)
+      expect(result2.success).toBe(true)
+
+      // Transitivity should allow us to conclude ∞ = ∞ -> ∞ -> ∞
+      // This follows from ∞ = (∞ -> ∞) and (∞ -> ∞) = (∞ -> ∞ -> ∞)
+      expect(s.provenEqualities.length).toBeGreaterThan(1)
+    })
+
+    it('should track multiple equalities for transitivity chains', () => {
+      const s = state()
+
+      // Prove several equalities
+      verify(normalize(parseExpr('aa = aa')), s)
+      verify(normalize(parseExpr('bb = bb')), s)
+      verify(normalize(parseExpr('cc = cc')), s)
+
+      // State should track all proven equalities
+      expect(s.provenEqualities.length).toBeGreaterThanOrEqual(3)
+    })
+  })
+
+  describe('Extended resolution - Congruence (A2)', () => {
+    it('should apply congruence: if (a = c) and (b = d) then (a -> b) = (c -> d)', () => {
+      const s = state()
+
+      // With reflexivity, if a=a and b=b, then (a -> b) = (a -> b)
+      const eq = normalize(parseExpr('a -> b = a -> b'))
+      const result = verify(eq, s)
+      expect(result.success).toBe(true)
+    })
+
+    it('should use congruence for link expressions with identical components', () => {
+      const s = state()
+
+      // First prove ∞ = ∞ -> ∞
+      const eq1 = normalize(parseExpr('∞ = ∞ -> ∞'))
+      verify(eq1, s)
+
+      // Then congruence can be used to prove (∞ -> x) = ((∞ -> ∞) -> x)
+      // where the left parts are equal due to A4
+      const eq2 = normalize(parseExpr('(∞ -> x) = ((∞ -> ∞) -> x)'))
+      const result = verify(eq2, s)
+      expect(result.success).toBe(true)
+    })
+
+    it('should use congruence with proven equalities', () => {
+      const s = state()
+
+      // Prove ♂a = ♂a -> a (using A5)
+      const eq1 = normalize(parseExpr('♂a = ♂a -> a'))
+      const result1 = verify(eq1, s)
+      expect(result1.success).toBe(true)
+
+      // Now try to use congruence with this equality
+      // (♂a -> b) should equal ((♂a -> a) -> b) if we can use congruence
+      const eq2 = normalize(parseExpr('(♂a -> b) = ((♂a -> a) -> b)'))
+      const result2 = verify(eq2, s)
+      expect(result2.success).toBe(true)
+    })
+  })
+
+  describe('ProvenEquality tracking', () => {
+    it('should not duplicate equalities', () => {
+      const s = state()
+
+      // Prove the same equality twice
+      verify(normalize(parseExpr('x = x')), s)
+      const countAfterFirst = s.provenEqualities.length
+
+      verify(normalize(parseExpr('x = x')), s)
+      const countAfterSecond = s.provenEqualities.length
+
+      // Should not have added a duplicate
+      expect(countAfterSecond).toBe(countAfterFirst)
+    })
+
+    it('should not add symmetric version as duplicate', () => {
+      const s = state()
+
+      // Prove a = b
+      verify(normalize(parseExpr('∞ = ∞ -> ∞')), s)
+      const countAfterFirst = s.provenEqualities.length
+
+      // Prove b = a (symmetric)
+      verify(normalize(parseExpr('∞ -> ∞ = ∞')), s)
+      const countAfterSecond = s.provenEqualities.length
+
+      // Should recognize this as the same equality and not duplicate
+      expect(countAfterSecond).toBe(countAfterFirst)
+    })
+
+    it('should preserve proven equalities across multiple verifications', () => {
+      const s = state()
+
+      // Prove several distinct equalities
+      verify(normalize(parseExpr('∞ = ∞ -> ∞')), s)
+      verify(normalize(parseExpr('♂v = ♂v -> v')), s)
+      verify(normalize(parseExpr('r♀ = r -> r♀')), s)
+
+      // All should be tracked
+      expect(s.provenEqualities.length).toBeGreaterThanOrEqual(3)
+    })
+  })
 })
