@@ -485,7 +485,7 @@ r♀ = r -> r♀
 
     test('should display version number', async ({ page }) => {
       await expect(page.locator('.version')).toBeVisible()
-      await expect(page.locator('.version')).toContainText('v0.6.0')
+      await expect(page.locator('.version')).toContainText('v0.7.0')
     })
   })
 
