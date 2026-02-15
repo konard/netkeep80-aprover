@@ -30,6 +30,8 @@ import {
   visualizeQuatConversion,
   type QuatConversionStep,
 } from './core/quatAnum'
+import InteractiveProver from './components/InteractiveProver.vue'
+import type { ASTNode } from './core/ast'
 
 const input = ref(`// МТС — Ассоциативный прувер
 // Примеры аксиом и формул
@@ -85,11 +87,37 @@ const originalAstrContent = ref<string | null>(null)
 const quatConversionSteps = ref<QuatConversionStep[]>([])
 const originalAnumContent = ref<string | null>(null)
 
+// Interactive proof mode state
+const showInteractive = ref(false)
+const interactiveGoals = ref<ASTNode[]>([])
+
 // Application version from package.json (injected by Vite at build time)
 const appVersion = __APP_VERSION__
 
 const toggleAST = () => {
   showAST.value = !showAST.value
+}
+
+// Toggle interactive proof mode
+const toggleInteractive = () => {
+  if (!showInteractive.value) {
+    // Starting interactive mode - collect goals from AST
+    if (ast.value && ast.value.statements.length > 0) {
+      interactiveGoals.value = ast.value.statements.map(stmt => normalize(stmt.expr))
+    }
+  }
+  showInteractive.value = !showInteractive.value
+}
+
+// Handle interactive proof completion
+const handleProofComplete = (steps: any[]) => {
+  // Optionally do something when proof completes
+  console.log('Proof complete with', steps.length, 'steps')
+}
+
+// Close interactive mode
+const closeInteractive = () => {
+  showInteractive.value = false
 }
 
 // Handle AST node hover for source highlighting
@@ -486,11 +514,28 @@ onUnmounted(() => {
         <button class="toggle-btn" :class="{ active: showAST }" @click="toggleAST">
           {{ showAST ? 'Hide AST' : 'Show AST' }}
         </button>
+        <button
+          class="toggle-btn interactive-btn"
+          :class="{ active: showInteractive }"
+          :disabled="!ast || ast.statements.length === 0"
+          title="Интерактивный режим доказательства"
+          @click="toggleInteractive"
+        >
+          {{ showInteractive ? 'Exit INT' : 'INT' }}
+        </button>
         <span v-if="currentFileType !== 'mtl'" class="file-type-badge" :class="currentFileType">
           {{ currentFileType.toUpperCase() }}
         </span>
       </div>
     </header>
+
+    <!-- Interactive proof mode panel -->
+    <InteractiveProver
+      :active="showInteractive"
+      :initial-goals="interactiveGoals"
+      @close="closeInteractive"
+      @proof-complete="handleProofComplete"
+    />
 
     <!-- Conversion panel for .astr files -->
     <div v-if="showConversion && conversionSteps.length > 0" class="conversion-panel astr-panel">
@@ -862,6 +907,26 @@ body {
   background: #667eea;
   color: white;
   border-color: #667eea;
+}
+
+.toggle-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggle-btn.interactive-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: 600;
+}
+
+.toggle-btn.interactive-btn:not(:disabled):hover {
+  background: linear-gradient(135deg, #7c93f0 0%, #8b5cbf 100%);
+}
+
+.toggle-btn.interactive-btn:disabled {
+  background: var(--accent-color);
+  color: #64748b;
 }
 
 .app-main {
