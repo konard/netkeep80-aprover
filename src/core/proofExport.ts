@@ -26,7 +26,7 @@ import {
   isBracketExpr,
   isPowerExpr,
 } from './ast'
-import type { ProofStep, ProofResult, AxiomInfo, ProverState, AxiomId } from './prover'
+import type { ProofResult, ProverState, AxiomId } from './prover'
 import { AXIOMS } from './prover'
 import { toCanonicalString } from './normalizer'
 
@@ -355,7 +355,8 @@ export function exportToLaTeX(
 
   // Axiom definitions appendix
   if (includeAxiomDefinitions) {
-    const appendixLabel = language === 'ru' ? 'Приложение: Система аксиом МТС' : 'Appendix: MTS Axiom System'
+    const appendixLabel =
+      language === 'ru' ? 'Приложение: Система аксиом МТС' : 'Appendix: MTS Axiom System'
     lines.push(`\\section*{${appendixLabel}}`)
     lines.push('\\begin{description}')
     for (const [id, axiom] of Object.entries(AXIOMS)) {
@@ -752,11 +753,21 @@ export function exportToDOT(
     lines.push('  subgraph cluster_legend {')
     lines.push('    label="Легенда";')
     lines.push('    style=dashed;')
-    lines.push(`    legend_goal [label="Цель", shape=ellipse, fillcolor="${c.goal}", style=filled];`)
-    lines.push(`    legend_step [label="Шаг", shape=${nodeShape}, fillcolor="${c.step}", style=filled];`)
-    lines.push(`    legend_axiom [label="Аксиома", shape=${nodeShape}, fillcolor="${c.axiom}", style=filled];`)
-    lines.push(`    legend_success [label="Успех", shape=ellipse, fillcolor="${c.success}", style=filled];`)
-    lines.push(`    legend_failure [label="Неудача", shape=ellipse, fillcolor="${c.failure}", style=filled];`)
+    lines.push(
+      `    legend_goal [label="Цель", shape=ellipse, fillcolor="${c.goal}", style=filled];`
+    )
+    lines.push(
+      `    legend_step [label="Шаг", shape=${nodeShape}, fillcolor="${c.step}", style=filled];`
+    )
+    lines.push(
+      `    legend_axiom [label="Аксиома", shape=${nodeShape}, fillcolor="${c.axiom}", style=filled];`
+    )
+    lines.push(
+      `    legend_success [label="Успех", shape=ellipse, fillcolor="${c.success}", style=filled];`
+    )
+    lines.push(
+      `    legend_failure [label="Неудача", shape=ellipse, fillcolor="${c.failure}", style=filled];`
+    )
     lines.push('    legend_goal -> legend_step [style=invis];')
     lines.push('    legend_step -> legend_axiom [style=invis];')
     lines.push('    legend_axiom -> legend_success [style=invis];')

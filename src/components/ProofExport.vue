@@ -72,29 +72,31 @@ const dotOptions = ref<DOTExportOptions>({
 // Computed
 const hasResults = computed(() => props.results && props.results.length > 0)
 
-const formatDescriptions: Record<ExportFormat, { icon: string; name: string; description: string }> =
-  {
-    latex: {
-      icon: '📜',
-      name: 'LaTeX',
-      description: 'Для научных статей и документации',
-    },
-    text: {
-      icon: '📄',
-      name: 'Текст',
-      description: 'Человекочитаемый формат',
-    },
-    json: {
-      icon: '{ }',
-      name: 'JSON',
-      description: 'Машиночитаемый формат с трассировкой',
-    },
-    dot: {
-      icon: '🔗',
-      name: 'DOT',
-      description: 'Граф для Graphviz визуализации',
-    },
-  }
+const formatDescriptions: Record<
+  ExportFormat,
+  { icon: string; name: string; description: string }
+> = {
+  latex: {
+    icon: '📜',
+    name: 'LaTeX',
+    description: 'Для научных статей и документации',
+  },
+  text: {
+    icon: '📄',
+    name: 'Текст',
+    description: 'Человекочитаемый формат',
+  },
+  json: {
+    icon: '{ }',
+    name: 'JSON',
+    description: 'Машиночитаемый формат с трассировкой',
+  },
+  dot: {
+    icon: '🔗',
+    name: 'DOT',
+    description: 'Граф для Graphviz визуализации',
+  },
+}
 
 // Methods
 const toggleDropdown = () => {
@@ -691,4 +693,3 @@ const previewContent = computed(() => {
   cursor: not-allowed;
 }
 </style>
-</template>
