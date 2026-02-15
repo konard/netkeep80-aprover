@@ -475,7 +475,11 @@ const handleMouseLeave = () => {
         <button class="symbol-btn" title="Вставить символ ¬ (инверсия)" @click="insertSymbol('¬')">
           ¬
         </button>
-        <button class="symbol-btn" title="Вставить символ ≠ (неравенство)" @click="insertSymbol('≠')">
+        <button
+          class="symbol-btn"
+          title="Вставить символ ≠ (неравенство)"
+          @click="insertSymbol('≠')"
+        >
           ≠
         </button>
       </div>
