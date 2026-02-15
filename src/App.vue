@@ -31,7 +31,9 @@ import {
   type QuatConversionStep,
 } from './core/quatAnum'
 import InteractiveProver from './components/InteractiveProver.vue'
+import ProofExport from './components/ProofExport.vue'
 import type { ASTNode } from './core/ast'
+import type { ProverState } from './core/prover'
 
 const input = ref(`// МТС — Ассоциативный прувер
 // Примеры аксиом и формул
@@ -61,6 +63,7 @@ const error = ref<string | null>(null)
 const errorLocation = ref<SourceLocation | null>(null)
 const ast = ref<File | null>(null)
 const results = ref<{ stmt: string; result: ProofResult }[]>([])
+const proverState = ref<ProverState | null>(null)
 
 // Panel visibility state
 const showAST = ref(true)
@@ -135,6 +138,7 @@ const parseAndVerify = () => {
   errorLocation.value = null
   ast.value = null
   results.value = []
+  proverState.value = null
 
   try {
     // Use parseWithRecovery to get partial results even on error
@@ -157,6 +161,9 @@ const parseAndVerify = () => {
         const result = verify(normalized, state)
         results.value.push({ stmt: stmtStr, result })
       }
+
+      // Store prover state for export
+      proverState.value = state
     }
   } catch (e) {
     if (e instanceof ParseError) {
@@ -500,6 +507,11 @@ onUnmounted(() => {
             <span class="btn-icon">{ }</span>
             <span class="btn-text">JSON</span>
           </button>
+          <ProofExport
+            :results="results"
+            :state="proverState || undefined"
+            :base-file-name="currentFileName || undefined"
+          />
         </div>
         <div class="toolbar-separator"></div>
         <button
