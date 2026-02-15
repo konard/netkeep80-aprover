@@ -2,13 +2,16 @@
  * Unit tests for МТС normalizer
  */
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { parseExpr } from '../../src/core/parser'
 import {
   normalize,
   toCanonicalString,
   astEqual,
   NormalizationError,
+  clearNormalizationCache,
+  getNormalizationCacheStats,
+  setNormalizationCacheEnabled,
 } from '../../src/core/normalizer'
 
 describe('Normalizer', () => {
@@ -116,6 +119,118 @@ describe('Normalizer', () => {
 
     it('should sort set elements', () => {
       expect(canonical('{b, a}')).toBe(canonical('{a, b}'))
+    })
+  })
+
+  describe('Normalization caching', () => {
+    beforeEach(() => {
+      // Clear cache before each test
+      clearNormalizationCache()
+      setNormalizationCacheEnabled(true)
+    })
+
+    it('should cache normalization results', () => {
+      const expr = 'a -> b -> c'
+
+      // First normalization - should be a cache miss
+      normalize(parseExpr(expr))
+      const stats1 = getNormalizationCacheStats()
+      expect(stats1.misses).toBeGreaterThan(0)
+
+      // Second normalization of the same expression - should be a cache hit
+      normalize(parseExpr(expr))
+      const stats2 = getNormalizationCacheStats()
+      expect(stats2.hits).toBeGreaterThan(0)
+    })
+
+    it('should return consistent results with caching', () => {
+      const expr = '!!a -> b'
+      const result1 = normalize(parseExpr(expr))
+      const result2 = normalize(parseExpr(expr))
+      expect(toCanonicalString(result1)).toBe(toCanonicalString(result2))
+    })
+
+    it('should work correctly when caching is disabled', () => {
+      setNormalizationCacheEnabled(false)
+      const expr = 'a -> b'
+      const result1 = normalize(parseExpr(expr))
+      const result2 = normalize(parseExpr(expr))
+      expect(toCanonicalString(result1)).toBe(toCanonicalString(result2))
+
+      // Stats should not change when caching is disabled
+      const stats = getNormalizationCacheStats()
+      expect(stats.hits).toBe(0)
+      expect(stats.misses).toBe(0)
+    })
+
+    it('should clear cache correctly', () => {
+      const expr = 'x -> y'
+      normalize(parseExpr(expr))
+      const stats1 = getNormalizationCacheStats()
+      expect(stats1.size).toBeGreaterThan(0)
+
+      clearNormalizationCache()
+      const stats2 = getNormalizationCacheStats()
+      expect(stats2.size).toBe(0)
+      expect(stats2.hits).toBe(0)
+      expect(stats2.misses).toBe(0)
+    })
+
+    it('should track cache statistics correctly', () => {
+      const expr1 = 'a -> b'
+      const expr2 = 'c -> d'
+
+      // First calls are misses
+      normalize(parseExpr(expr1))
+      normalize(parseExpr(expr2))
+
+      const statsAfterMisses = getNormalizationCacheStats()
+      expect(statsAfterMisses.size).toBe(2)
+
+      // Second calls are hits
+      normalize(parseExpr(expr1))
+      normalize(parseExpr(expr2))
+
+      const statsAfterHits = getNormalizationCacheStats()
+      expect(statsAfterHits.hits).toBe(2)
+    })
+
+    it('should cache complex expressions with power operator', () => {
+      const expr = 'a^3'
+      const result1 = normalize(parseExpr(expr))
+      const result2 = normalize(parseExpr(expr))
+
+      // Both should produce ((a->a)->a)
+      expect(toCanonicalString(result1)).toBe('((a->a)->a)')
+      expect(toCanonicalString(result2)).toBe('((a->a)->a)')
+    })
+
+    it('should handle different normalization options separately', () => {
+      const expr = parseExpr('a !-> b')
+
+      // Default options (desugar enabled)
+      const result1 = normalize(expr)
+      expect(result1.type).toBe('Not')
+
+      // Custom options (desugar disabled)
+      const result2 = normalize(expr, { desugarNotLink: false })
+      expect(result2.type).toBe('NotLink')
+    })
+
+    it('should calculate hit rate correctly', () => {
+      clearNormalizationCache()
+      const expr = 'a -> b'
+
+      // 2 misses
+      normalize(parseExpr(expr))
+      normalize(parseExpr('c -> d'))
+
+      // 2 hits
+      normalize(parseExpr(expr))
+      normalize(parseExpr('c -> d'))
+
+      const stats = getNormalizationCacheStats()
+      expect(stats.hitRate).toBe(0.5) // 2 hits / 4 total = 0.5
     })
   })
 })
