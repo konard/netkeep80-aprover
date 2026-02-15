@@ -43,6 +43,131 @@ import {
   isBracketExpr,
 } from './ast'
 
+/**
+ * Cache for normalization results.
+ * Uses canonical string representation of AST as key.
+ *
+ * Performance optimization for:
+ * - Large expressions with repeated subexpressions
+ * - Multiple verification passes over the same input
+ */
+class NormalizationCache {
+  private cache: Map<string, ASTNode> = new Map()
+  private maxSize: number
+  private hits: number = 0
+  private misses: number = 0
+  private enabled: boolean = true
+
+  constructor(maxSize: number = 1000) {
+    this.maxSize = maxSize
+  }
+
+  /**
+   * Enable or disable caching
+   */
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled
+  }
+
+  /**
+   * Check if caching is enabled
+   */
+  isEnabled(): boolean {
+    return this.enabled
+  }
+
+  /**
+   * Get cached result for a canonical string key
+   */
+  get(key: string): ASTNode | undefined {
+    if (!this.enabled) return undefined
+
+    const result = this.cache.get(key)
+    if (result) {
+      this.hits++
+    } else {
+      this.misses++
+    }
+    return result
+  }
+
+  /**
+   * Store normalized result in cache
+   */
+  set(key: string, value: ASTNode): void {
+    if (!this.enabled) return
+
+    // Evict oldest entries if cache is full (simple LRU approximation)
+    if (this.cache.size >= this.maxSize) {
+      const firstKey = this.cache.keys().next().value
+      if (firstKey) {
+        this.cache.delete(firstKey)
+      }
+    }
+
+    this.cache.set(key, value)
+  }
+
+  /**
+   * Clear all cached entries
+   */
+  clear(): void {
+    this.cache.clear()
+    this.hits = 0
+    this.misses = 0
+  }
+
+  /**
+   * Get cache statistics
+   */
+  getStats(): { size: number; hits: number; misses: number; hitRate: number } {
+    const total = this.hits + this.misses
+    return {
+      size: this.cache.size,
+      hits: this.hits,
+      misses: this.misses,
+      hitRate: total > 0 ? this.hits / total : 0,
+    }
+  }
+}
+
+/** Global normalization cache instance */
+const normalizationCache = new NormalizationCache()
+
+/**
+ * Get the global normalization cache instance
+ * Useful for statistics and cache management
+ */
+export function getNormalizationCache(): NormalizationCache {
+  return normalizationCache
+}
+
+/**
+ * Clear the normalization cache
+ */
+export function clearNormalizationCache(): void {
+  normalizationCache.clear()
+}
+
+/**
+ * Enable or disable normalization caching
+ */
+export function setNormalizationCacheEnabled(enabled: boolean): void {
+  normalizationCache.setEnabled(enabled)
+}
+
+/**
+ * Get normalization cache statistics
+ */
+export function getNormalizationCacheStats(): {
+  size: number
+  hits: number
+  misses: number
+  hitRate: number
+} {
+  return normalizationCache.getStats()
+}
+
 /** Normalization error */
 export class NormalizationError extends Error {
   constructor(
@@ -321,25 +446,67 @@ function canonicalize(node: ASTNode): ASTNode {
 }
 
 /**
+ * Generate a cache key for an AST node with given options.
+ * The key includes the options hash to differentiate different normalization modes.
+ */
+function generateCacheKey(node: ASTNode, opts: NormalizerOptions): string {
+  // Create options signature (only include non-default values to save space)
+  const optsSig = [
+    opts.desugarNotLink ? '' : 'D0',
+    opts.expandPower ? '' : 'P0',
+    opts.canonicalize ? '' : 'C0',
+    opts.checkGuardedRecursion ? '' : 'G0',
+  ]
+    .filter(Boolean)
+    .join('')
+
+  // Use toCanonicalString for the node structure (pre-normalization)
+  const nodeKey = toCanonicalString(node)
+
+  return optsSig ? `${optsSig}:${nodeKey}` : nodeKey
+}
+
+/**
  * Normalize AST
+ *
+ * Uses caching to improve performance for repeated normalizations
+ * of the same expression. Cache is keyed by the canonical string
+ * representation of the input AST and normalization options.
  */
 export function normalize(node: ASTNode, options: Partial<NormalizerOptions> = {}): ASTNode {
   const opts = { ...defaultOptions, ...options }
+
+  // Try to get from cache first
+  if (normalizationCache.isEnabled()) {
+    const cacheKey = generateCacheKey(node, opts)
+    const cached = normalizationCache.get(cacheKey)
+    if (cached) {
+      return cached
+    }
+
+    // Normalize and cache the result
+    const result = normalizeNode(node, opts)
+    normalizationCache.set(cacheKey, result)
+    return result
+  }
+
+  // Caching disabled, just normalize
   return normalizeNode(node, opts)
 }
 
 /**
  * Normalize file
+ *
+ * Each statement expression is normalized using the cached normalize function.
  */
 export function normalizeFile(file: File, options: Partial<NormalizerOptions> = {}): File {
-  const opts = { ...defaultOptions, ...options }
   return {
     type: 'File',
     statements: file.statements.map(
       stmt =>
         ({
           type: 'Statement',
-          expr: normalizeNode(stmt.expr, opts),
+          expr: normalize(stmt.expr, options),
           loc: stmt.loc,
         }) as Statement
     ),
