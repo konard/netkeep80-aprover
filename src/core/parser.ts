@@ -13,9 +13,11 @@
  * Chain     ::= Pref { ("->" | "!->") Pref }  // left-associative
  * Pref      ::= { "!" | "¬" | "♂" } Post
  * Post      ::= Atom { "♀" | "^" Nat }
- * Atom      ::= Const | Id | CharLit | Set | "(" Expr ")"
+ * Atom      ::= Const | Id | CharLit | StringLit | Set | "(" Expr ")"
  * Set       ::= "{" Expr { "," Expr } "}"
  * Const     ::= "∞" | "0" | "1" | "[" | "]"
+ * CharLit   ::= "'" Utf8Char "'"   // single char for quaternary abits
+ * StringLit ::= '"' { Utf8Char } '"' // string for string anumbers
  */
 
 import type { Token, TokenType } from './lexer'
@@ -38,6 +40,7 @@ import type {
   NumExpr,
   IdentExpr,
   CharLitExpr,
+  StringLitExpr,
   BracketExpr,
   SourceLocation,
 } from './ast'
@@ -382,10 +385,16 @@ export class Parser {
       return { type: 'Identifier', name: token.value, loc: token.loc } as IdentExpr
     }
 
-    // Character literal
+    // Character literal (single character in single quotes - for quaternary abits)
     if (this.check('CHAR_LIT')) {
       this.advance()
       return { type: 'CharLit', char: token.value, loc: token.loc } as CharLitExpr
+    }
+
+    // String literal (multiple characters in double quotes - for string anumbers)
+    if (this.check('STRING_LIT')) {
+      this.advance()
+      return { type: 'StringLit', value: token.value, loc: token.loc } as StringLitExpr
     }
 
     // Set: "{" Expr { "," Expr } "}"

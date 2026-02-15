@@ -1179,12 +1179,7 @@ export function applyModusPonens(state: ProverState): ASTNode[] {
 
         // If the derived fact is itself an implication, add it
         if (isLinkExpr(impl.consequent)) {
-          addProvenImplication(
-            state,
-            impl.consequent.left,
-            impl.consequent.right,
-            'derived via MP'
-          )
+          addProvenImplication(state, impl.consequent.left, impl.consequent.right, 'derived via MP')
         }
       }
     }

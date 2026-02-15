@@ -79,10 +79,40 @@ describe('Lexer', () => {
       expect(tokenize('.')[0].type).toBe('DOT')
     })
 
-    it('should tokenize character literals', () => {
+    it('should tokenize character literals (single quotes)', () => {
       const tokens = tokenize("'c'")
       expect(tokens[0].type).toBe('CHAR_LIT')
       expect(tokens[0].value).toBe('c')
+    })
+
+    it('should tokenize string literals (double quotes)', () => {
+      const tokens = tokenize('"hello"')
+      expect(tokens[0].type).toBe('STRING_LIT')
+      expect(tokens[0].value).toBe('hello')
+    })
+
+    it('should tokenize empty string literal', () => {
+      const tokens = tokenize('""')
+      expect(tokens[0].type).toBe('STRING_LIT')
+      expect(tokens[0].value).toBe('')
+    })
+
+    it('should tokenize string literal with UTF-8 characters', () => {
+      const tokens = tokenize('"связь"')
+      expect(tokens[0].type).toBe('STRING_LIT')
+      expect(tokens[0].value).toBe('связь')
+    })
+
+    it('should tokenize string literal with escape sequences', () => {
+      const tokens = tokenize('"a\\nb\\tc"')
+      expect(tokens[0].type).toBe('STRING_LIT')
+      expect(tokens[0].value).toBe('a\nb\tc')
+    })
+
+    it('should tokenize string literal with escaped quotes', () => {
+      const tokens = tokenize('"say \\"hello\\""')
+      expect(tokens[0].type).toBe('STRING_LIT')
+      expect(tokens[0].value).toBe('say "hello"')
     })
 
     it('should tokenize identifiers', () => {
@@ -188,6 +218,10 @@ describe('Lexer', () => {
 
     it('should throw on unterminated char literal', () => {
       expect(() => tokenize("'")).toThrow(LexerError)
+    })
+
+    it('should throw on unterminated string literal', () => {
+      expect(() => tokenize('"hello')).toThrow(LexerError)
     })
   })
 })

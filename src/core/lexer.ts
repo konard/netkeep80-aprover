@@ -27,7 +27,8 @@ export type TokenType =
   | 'RBRACKET' // ]
   | 'COMMA' // ,
   | 'DOT' // .
-  | 'CHAR_LIT' // 'c'
+  | 'CHAR_LIT' // 'c' (single character for quaternary abits)
+  | 'STRING_LIT' // "..." (string for string anumbers)
   | 'ID' // identifier
   | 'NAT' // natural number
   | 'EOF'
@@ -153,7 +154,7 @@ export class Lexer {
     return result
   }
 
-  /** Read character literal */
+  /** Read character literal (single character in single quotes) */
   private readCharLit(): string {
     this.advance() // skip opening '
     if (this.isEOF()) {
@@ -171,6 +172,50 @@ export class Lexer {
     }
     this.advance() // skip closing '
     return char
+  }
+
+  /** Read string literal (multiple characters in double quotes) */
+  private readStringLit(): string {
+    this.advance() // skip opening "
+    let result = ''
+    while (!this.isEOF() && this.current() !== '"') {
+      // Handle escape sequences
+      if (this.current() === '\\') {
+        this.advance()
+        if (this.isEOF()) {
+          throw new LexerError('Unterminated string literal', this.line, this.column, this.pos)
+        }
+        const escaped = this.current()
+        switch (escaped) {
+          case 'n':
+            result += '\n'
+            break
+          case 't':
+            result += '\t'
+            break
+          case 'r':
+            result += '\r'
+            break
+          case '\\':
+            result += '\\'
+            break
+          case '"':
+            result += '"'
+            break
+          default:
+            // For unknown escape sequences, just include the character as-is
+            result += escaped
+        }
+      } else {
+        result += this.current()
+      }
+      this.advance()
+    }
+    if (this.isEOF()) {
+      throw new LexerError('Unterminated string literal', this.line, this.column, this.pos)
+    }
+    this.advance() // skip closing "
+    return result
   }
 
   /** Get next token */
@@ -321,6 +366,13 @@ export class Lexer {
         return {
           type: 'CHAR_LIT',
           value: char,
+          loc: this.makeLoc(startLine, startColumn, startOffset),
+        }
+      case '"':
+        const str = this.readStringLit()
+        return {
+          type: 'STRING_LIT',
+          value: str,
           loc: this.makeLoc(startLine, startColumn, startOffset),
         }
     }

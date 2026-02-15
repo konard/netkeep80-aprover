@@ -67,12 +67,16 @@ Pow       = "^" , Nat ;
 
 Atom      = Const
           | Id
+          | CharLit
+          | StringLit
           | Set
           | "(" , Expr , ")" ;
 
 Set       = "{" , Expr , { "," , Expr } , "}" ;
 
 Const     = "∞" | "0" | "1" | "[" | "]" ;
+CharLit   = "'" , Utf8Char , "'" ;       (* одинарные кавычки для четверичных абитов *)
+StringLit = '"' , { Utf8Char } , '"' ;   (* двойные кавычки для строковых ачисел *)
 Id        = Letter , { Letter | Digit | "_" } ;
 Nat       = Digit , { Digit } ;
 ```

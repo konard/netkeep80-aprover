@@ -98,10 +98,16 @@ export interface IdentExpr extends ASTNode {
   name: string
 }
 
-/** Character literal: 'c' */
+/** Character literal: 'c' (single character, used for quaternary abits) */
 export interface CharLitExpr extends ASTNode {
   type: 'CharLit'
   char: string
+}
+
+/** String literal: "..." (multi-character string, used for string anumbers) */
+export interface StringLitExpr extends ASTNode {
+  type: 'StringLit'
+  value: string
 }
 
 /** Bracket constants: [ and ] (abits) */
@@ -179,6 +185,10 @@ export function isCharLitExpr(node: ASTNode): node is CharLitExpr {
   return node.type === 'CharLit'
 }
 
+export function isStringLitExpr(node: ASTNode): node is StringLitExpr {
+  return node.type === 'StringLit'
+}
+
 export function isBracketExpr(node: ASTNode): node is BracketExpr {
   return node.type === 'Bracket'
 }
@@ -214,6 +224,8 @@ export function astToString(node: ASTNode): string {
       return (node as IdentExpr).name
     case 'CharLit':
       return `'${(node as CharLitExpr).char}'`
+    case 'StringLit':
+      return `"${(node as StringLitExpr).value}"`
     case 'Bracket':
       return (node as BracketExpr).side === 'left' ? '[' : ']'
     case 'Statement':
