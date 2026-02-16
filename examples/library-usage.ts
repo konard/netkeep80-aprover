@@ -94,7 +94,7 @@ for (const test of tests) {
   const status = result.success ? '✓' : '✗'
   console.log(`${status} ${test}`)
   if (result.success && result.appliedAxioms) {
-    const axiomIds = [...new Set(result.appliedAxioms.map((a) => a.id))]
+    const axiomIds = [...new Set(result.appliedAxioms.map(a => a.id))]
     console.log(`  Applied: ${axiomIds.join(', ')}`)
   }
 }
