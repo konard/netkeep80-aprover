@@ -437,11 +437,25 @@ docs/mts/
   - Внешние источники (Gödel, Smullyan, Hofstadter, Franzén)
   - Перекрёстные ссылки
 
-### Этап 5.8: Обновление README.md — 1 день
+### Этап 5.8: Обновление README.md — Завершено ✅
 
-- [ ] Обновить `README.md` проекта с новой структурой документации
-- [ ] Обновить ссылки на документацию
-- [ ] Добавить визуальную карту документации
+- [x] Обновить `README.md` проекта с новой структурой документации
+- [x] Обновить ссылки на документацию
+- [x] Добавить визуальную карту документации
+
+**Реализовано:**
+- Добавлена визуальная карта документации в ASCII-формате (дерево файловой структуры docs/mts/)
+- Карта документации включает все 8 разделов с описаниями:
+  - `01-foundations/` — 3 файла (introduction, ontology, signs-as-queries)
+  - `02-axioms/` — 11 файлов (overview + 10 аксиом А0-А11)
+  - `03-notations/` — 5 файлов (overview, formal, string-anum, quaternary, ebnf)
+  - `04-logic/` — 3 файла (four-valued, guarded-recursion, natural-numbers)
+  - `05-prover/` — 4 файла (architecture, resolution, modus-ponens, interactive)
+  - `06-philosophy/` — 2 файла (comparison, godel)
+  - `specification/` — 1 файл (v0.1.md)
+  - `archive/` — 2 файла (formal-notation, sign-link-gap)
+- Обновлён статус Этапа 5.8 в README.md (✅ завершён)
+- Удалено устаревшее примечание о нахождении документации в процессе миграции
 
 ### Этап 5.9: Проверка и финализация — 1-2 дня
 
