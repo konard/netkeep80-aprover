@@ -86,7 +86,7 @@
 **Текущий статус:** Фаза 4 в разработке.
 - ✅ Этап 4.1: Полная реализация Modus Ponens — завершён
 - ✅ Этап 4.2: Интерактивный режим доказательства — завершён
-- ⏳ Этап 4.3: Экспорт доказательств — ожидает
+- ✅ Этап 4.3: Экспорт доказательств — завершён
 - ⏳ Этап 4.4: Улучшение API и документации — ожидает
 - ⏳ Этап 4.5: Тестирование и документация — ожидает
 
@@ -324,6 +324,169 @@ session.jumpToHistory(2) // Перейти к третьей точке исто
 - `getSuggestedSteps(goal, state, maxSteps)` — получение предложенных шагов для цели
 - `quickProof(goal, state)` — быстрое автоматическое доказательство цели
 
+## Экспорт доказательств — v0.9.0
+
+Реализован экспорт доказательств в различные форматы для документирования, публикации и визуализации.
+
+### Поддерживаемые форматы
+
+| Формат | Расширение | Назначение |
+|--------|------------|------------|
+| **LaTeX** | `.tex` | Публикация в научных статьях, презентациях |
+| **Текст** | `.txt` | Человекочитаемая документация |
+| **JSON** | `.json` | Машиночитаемый формат с полной трассировкой |
+| **DOT** | `.dot` | Визуализация графа доказательства (Graphviz) |
+
+### LaTeX экспорт
+
+Генерирует полноценный LaTeX документ с:
+- Standalone документ с преамбулой или без
+- Proof environment из пакета amsthm
+- Цветные бейджи для аксиом (xcolor)
+- Приложение с определениями используемых аксиом
+- Поддержка русского и английского языков
+
+```latex
+\begin{proof}
+\textbf{Цель:} $\infty = (\infty \to \infty)$ \\
+\textbf{Статус:} \textcolor{green}{\checkmark} Доказано \\[1em]
+\textbf{Шаги доказательства:}
+\begin{enumerate}
+\item \colorbox{yellow!30}{А4} Применено: Акорень ∞
+\end{enumerate}
+\end{proof}
+```
+
+### Текстовый экспорт
+
+Структурированный текстовый формат:
+- Разделители для удобного чтения
+- Номера шагов и временные метки
+- Описания аксиом с подсказками
+- Итоговая статистика доказательства
+
+```
+════════════════════════════════════════════════════
+ДОКАЗАТЕЛЬСТВО: ∞ = (∞ → ∞)
+════════════════════════════════════════════════════
+Статус: ✓ Доказано
+────────────────────────────────────────────────────
+ШАГИ ДОКАЗАТЕЛЬСТВА:
+[1] А4 — Акорень ∞: ∞ : (∞ → ∞)
+════════════════════════════════════════════════════
+```
+
+### JSON экспорт
+
+Машиночитаемый формат с полной информацией:
+- Полная трассировка доказательства
+- Опциональное включение AST
+- Состояние прувера (факты, импликации)
+- Временные метки и метаданные
+
+```json
+{
+  "goal": "∞ = (∞ → ∞)",
+  "success": true,
+  "provenBy": "A4",
+  "steps": [
+    {
+      "step": 1,
+      "axiom": "A4",
+      "name": "Акорень ∞",
+      "expression": "∞ : (∞ → ∞)"
+    }
+  ],
+  "statistics": {
+    "totalSteps": 1,
+    "axiomsUsed": ["A4"]
+  }
+}
+```
+
+### DOT/Graphviz экспорт
+
+Генерация графа зависимостей:
+- Различные направления: TB (сверху вниз), LR (слева направо), BT, RL
+- Три цветовые схемы: default, colorful, monochrome
+- Метки аксиом на рёбрах
+- Легенда с пояснениями
+
+```dot
+digraph proof {
+  rankdir=TB;
+  node [shape=box];
+  goal [label="∞ = (∞ → ∞)" style=filled fillcolor=lightgreen];
+  step1 [label="А4: Акорень ∞"];
+  step1 -> goal;
+}
+```
+
+### Использование в UI
+
+1. Нажмите кнопку **Экспорт** в панели инструментов
+2. Выберите формат из выпадающего меню
+3. Настройте опции экспорта (язык, форматирование и т.д.)
+4. Просмотрите предпросмотр экспорта
+5. Нажмите **Экспорт** для сохранения одного доказательства или **Экспорт всех** для всех результатов
+
+### Программный API
+
+```typescript
+import {
+  exportToLaTeX,
+  exportToText,
+  exportToJSON,
+  exportToDOT,
+  exportProof
+} from './core/proofExport'
+
+// LaTeX экспорт
+const latex = exportToLaTeX(result, goal, {
+  standalone: true,
+  proofEnvironment: true,
+  includeAxiomDefinitions: true,
+  language: 'ru'
+})
+
+// Текстовый экспорт
+const text = exportToText(result, goal, {
+  includeStepNumbers: true,
+  includeTimestamps: false,
+  language: 'ru'
+})
+
+// JSON экспорт
+const json = exportToJSON(result, goal, proverState, {
+  pretty: true,
+  includeAST: true,
+  includeState: true
+})
+
+// DOT/Graphviz экспорт
+const dot = exportToDOT(result, goal, {
+  direction: 'TB',
+  includeAxiomLabels: true,
+  nodeShape: 'box',
+  colorScheme: 'colorful',
+  includeLegend: true
+})
+
+// Универсальная функция
+const output = exportProof('latex', result, goal, proverState, options)
+```
+
+### Техническая реализация
+
+- `exportToLaTeX(result, goal, options)` — экспорт в формате LaTeX
+- `exportToText(result, goal, options)` — экспорт в текстовом формате
+- `exportToJSON(result, goal, state, options)` — экспорт в JSON
+- `exportToDOT(result, goal, options)` — генерация DOT-графа
+- `astToLaTeX(node)` — конвертация AST в LaTeX нотацию
+- `stringToLaTeX(str)` — экранирование строки для LaTeX
+- `getExportExtension(format)` — получение расширения файла
+- `getExportMimeType(format)` — получение MIME-типа
+
 ## Структура проекта
 
 ```
@@ -347,6 +510,7 @@ aprover/
 │   │   ├── normalizer.ts    # Нормализация и десахаризация
 │   │   ├── prover.ts        # Ядро прувера (унификация, modus ponens)
 │   │   ├── interactive.ts   # Интерактивный режим доказательства
+│   │   ├── proofExport.ts   # Экспорт доказательств (LaTeX, Text, JSON, DOT)
 │   │   ├── fileIO.ts        # Файловые операции (загрузка, сохранение, история)
 │   │   ├── stringAnum.ts    # Парсер строковых ачисел (.astr)
 │   │   └── quatAnum.ts      # Парсер четверичных ачисел (.anum)
@@ -355,7 +519,8 @@ aprover/
 │   │   ├── ASTViewer.vue    # Визуализация AST в виде дерева
 │   │   ├── ProverPanel.vue  # Панель результатов верификации
 │   │   ├── ErrorPanel.vue   # Панель ошибок парсинга
-│   │   └── InteractiveProver.vue  # Интерактивный режим доказательства
+│   │   ├── InteractiveProver.vue  # Интерактивный режим доказательства
+│   │   └── ProofExport.vue  # Компонент экспорта доказательств
 │   ├── App.vue              # Главный компонент приложения
 │   └── main.ts
 ├── tests/
@@ -365,6 +530,7 @@ aprover/
 │   │   ├── normalizer.test.ts
 │   │   ├── prover.test.ts
 │   │   ├── interactive.test.ts
+│   │   ├── proofExport.test.ts
 │   │   ├── fileIO.test.ts
 │   │   ├── stringAnum.test.ts
 │   │   └── quatAnum.test.ts
