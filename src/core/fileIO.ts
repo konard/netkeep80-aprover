@@ -71,6 +71,20 @@ export function isMtlFile(filename: string): boolean {
 }
 
 /**
+ * Check if file is an ASTR file (string anumbers)
+ */
+export function isAstrFile(filename: string): boolean {
+  return getFileExtension(filename) === '.astr'
+}
+
+/**
+ * Check if file is an ANUM file (quaternary anumbers)
+ */
+export function isAnumFile(filename: string): boolean {
+  return getFileExtension(filename) === '.anum'
+}
+
+/**
  * Read file content from File object
  */
 export async function readFileContent(file: File): Promise<string> {
