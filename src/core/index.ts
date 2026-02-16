@@ -227,3 +227,21 @@ export {
   downloadFile,
   openFileDialog,
 } from './fileIO'
+
+// ============================================================================
+// Proof Cache Module - Caching verification results
+// ============================================================================
+export type { ProofCacheStats } from './proofCache'
+
+export {
+  getProofCache,
+  getCachedProof,
+  cacheProof,
+  isProofCached,
+  clearProofCache,
+  setProofCacheEnabled,
+  isProofCacheEnabled,
+  getProofCacheStats,
+  setProofCacheMaxSize,
+  generateStateSignature,
+} from './proofCache'
