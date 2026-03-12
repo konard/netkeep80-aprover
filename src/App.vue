@@ -33,7 +33,7 @@ import {
 import InteractiveProver from './components/InteractiveProver.vue'
 import ProofExport from './components/ProofExport.vue'
 import type { ASTNode } from './core/ast'
-import type { ProverState } from './core/prover'
+import type { ProverState, ProofStep } from './core/prover'
 
 const input = ref(`// МТС — Ассоциативный прувер
 // Примеры аксиом и формул
@@ -113,9 +113,8 @@ const toggleInteractive = () => {
 }
 
 // Handle interactive proof completion
-const handleProofComplete = (steps: any[]) => {
-  // Optionally do something when proof completes
-  console.log('Proof complete with', steps.length, 'steps')
+const handleProofComplete = (_steps: ProofStep[]) => {
+  // Proof complete - could add notification or logging here if needed
 }
 
 // Close interactive mode

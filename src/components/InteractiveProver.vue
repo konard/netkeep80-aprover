@@ -9,6 +9,7 @@ import {
   type StepResult,
 } from '../core/interactive'
 import type { ASTNode } from '../core/ast'
+import type { ProofStep } from '../core/prover'
 import { toCanonicalString } from '../core/normalizer'
 
 const props = defineProps<{
@@ -20,7 +21,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'proof-complete', steps: any[]): void
+  (e: 'proof-complete', steps: ProofStep[]): void
 }>()
 
 // Session state
