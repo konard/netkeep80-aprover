@@ -15,16 +15,7 @@
  *    - Guarded recursion: recursive mentions allowed only under ->
  */
 
-import type {
-  ASTNode,
-  LinkExpr,
-  DefExpr,
-  MaleExpr,
-  FemaleExpr,
-  NotExpr,
-  Statement,
-  File,
-} from './ast'
+import type { ASTNode, DefExpr, Statement, File } from './ast'
 import {
   isLinkExpr,
   isNotLinkExpr,
@@ -43,6 +34,7 @@ import {
   isStringLitExpr,
   isBracketExpr,
 } from './ast'
+import { makeLink, makeNot, makeMale, makeFemale } from './astHelpers'
 
 /**
  * Cache for normalization results.
@@ -204,43 +196,6 @@ const defaultOptions: NormalizerOptions = {
 /** Deep clone AST node */
 function cloneNode<T extends ASTNode>(node: T): T {
   return JSON.parse(JSON.stringify(node))
-}
-
-/** Create link node */
-function makeLink(left: ASTNode, right: ASTNode): LinkExpr {
-  return {
-    type: 'Link',
-    left,
-    right,
-    loc: left.loc && right.loc ? { start: left.loc.start, end: right.loc.end } : undefined,
-  }
-}
-
-/** Create not node */
-function makeNot(operand: ASTNode): NotExpr {
-  return {
-    type: 'Not',
-    operand,
-    loc: operand.loc,
-  }
-}
-
-/** Create male node */
-function makeMale(operand: ASTNode): MaleExpr {
-  return {
-    type: 'Male',
-    operand,
-    loc: operand.loc,
-  }
-}
-
-/** Create female node */
-function makeFemale(operand: ASTNode): FemaleExpr {
-  return {
-    type: 'Female',
-    operand,
-    loc: operand.loc,
-  }
 }
 
 /**

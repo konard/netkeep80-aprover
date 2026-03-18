@@ -64,6 +64,21 @@ export {
 } from './ast'
 
 // ============================================================================
+// AST Helpers Module - Shared AST node factory functions
+// ============================================================================
+export {
+  makeLoc,
+  makeInfinity,
+  makeLink,
+  makeNot,
+  makeMale,
+  makeFemale,
+  makeAbitLit,
+  makeStringLit,
+  extractLinkChain,
+} from './astHelpers'
+
+// ============================================================================
 // Lexer Module - Lexical analysis
 // ============================================================================
 export type { TokenType, Token } from './lexer'
