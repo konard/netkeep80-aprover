@@ -13,15 +13,8 @@
  *   "связь" ≡ (((((∞ -> 'с') -> 'в') -> 'я') -> 'з') -> 'ь')
  */
 
-import type {
-  ASTNode,
-  File,
-  Statement,
-  LinkExpr,
-  InfinityExpr,
-  StringLitExpr,
-  SourceLocation,
-} from './ast'
+import type { ASTNode, File, Statement, LinkExpr, StringLitExpr } from './ast'
+import { makeLoc, makeInfinity, makeLink, makeStringLit } from './astHelpers'
 
 /** Error during string anumber parsing */
 export class StringAnumError extends Error {
@@ -49,36 +42,6 @@ const defaultOptions: StringAnumOptions = {
   lineAsStatement: true,
   skipEmptyLines: true,
   skipComments: true,
-}
-
-/** Create infinity node */
-function makeInfinity(loc?: SourceLocation): InfinityExpr {
-  return { type: 'Infinity', loc }
-}
-
-/** Create string literal node */
-function makeStringLit(value: string, loc?: SourceLocation): StringLitExpr {
-  return { type: 'StringLit', value, loc }
-}
-
-/** Create link node */
-function makeLink(left: ASTNode, right: ASTNode, loc?: SourceLocation): LinkExpr {
-  return { type: 'Link', left, right, loc }
-}
-
-/** Create source location */
-function makeLoc(
-  startLine: number,
-  startColumn: number,
-  startOffset: number,
-  endLine: number,
-  endColumn: number,
-  endOffset: number
-): SourceLocation {
-  return {
-    start: { line: startLine, column: startColumn, offset: startOffset },
-    end: { line: endLine, column: endColumn, offset: endOffset },
-  }
 }
 
 /**

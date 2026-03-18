@@ -18,17 +18,8 @@
  * 4. Further convert to formal notation using stringAnum module
  */
 
-import type {
-  ASTNode,
-  File,
-  Statement,
-  LinkExpr,
-  InfinityExpr,
-  AbitLitExpr,
-  MaleExpr,
-  FemaleExpr,
-  SourceLocation,
-} from './ast'
+import type { ASTNode, File, Statement, LinkExpr, AbitLitExpr } from './ast'
+import { makeLoc, makeInfinity, makeLink, makeMale, makeFemale, makeAbitLit } from './astHelpers'
 
 /** Valid abit characters in quaternary notation */
 export const VALID_ABITS = ['0', '1', '[', ']'] as const
@@ -107,46 +98,6 @@ export interface ValidationResult {
   error?: string
   /** Position of error if invalid */
   errorOffset?: number
-}
-
-/** Create source location */
-function makeLoc(
-  startLine: number,
-  startColumn: number,
-  startOffset: number,
-  endLine: number,
-  endColumn: number,
-  endOffset: number
-): SourceLocation {
-  return {
-    start: { line: startLine, column: startColumn, offset: startOffset },
-    end: { line: endLine, column: endColumn, offset: endOffset },
-  }
-}
-
-/** Create infinity node */
-function makeInfinity(loc?: SourceLocation): InfinityExpr {
-  return { type: 'Infinity', loc }
-}
-
-/** Create abit literal node */
-function makeAbitLit(value: string, loc?: SourceLocation): AbitLitExpr {
-  return { type: 'AbitLit', value, loc }
-}
-
-/** Create link node */
-function makeLink(left: ASTNode, right: ASTNode, loc?: SourceLocation): LinkExpr {
-  return { type: 'Link', left, right, loc }
-}
-
-/** Create male (self-closing start) node */
-function makeMale(operand: ASTNode, loc?: SourceLocation): MaleExpr {
-  return { type: 'Male', operand, loc }
-}
-
-/** Create female (self-closing end) node */
-function makeFemale(operand: ASTNode, loc?: SourceLocation): FemaleExpr {
-  return { type: 'Female', operand, loc }
 }
 
 /**
