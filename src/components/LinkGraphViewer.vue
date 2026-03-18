@@ -69,7 +69,7 @@ const cytoscapeStyle: cytoscape.Stylesheet[] = [
     style: {
       'background-color': '#22c55e',
       shape: 'round-rectangle',
-      'padding': '8px',
+      padding: '8px',
       width: 'label',
       height: 'label',
       'font-size': '14px',
@@ -93,7 +93,7 @@ const cytoscapeStyle: cytoscape.Stylesheet[] = [
     style: {
       'background-color': '#a855f7',
       shape: 'ellipse',
-      'padding': '6px',
+      padding: '6px',
       width: 'label',
       height: 'label',
     },
@@ -104,7 +104,7 @@ const cytoscapeStyle: cytoscape.Stylesheet[] = [
     style: {
       'background-color': '#6366f1',
       shape: 'round-rectangle',
-      'padding': '6px',
+      padding: '6px',
       width: 'label',
       height: 'label',
     },
@@ -115,7 +115,7 @@ const cytoscapeStyle: cytoscape.Stylesheet[] = [
     style: {
       'background-color': '#ec4899',
       shape: 'round-rectangle',
-      'padding': '6px',
+      padding: '6px',
       width: 'label',
       height: 'label',
     },
@@ -366,11 +366,7 @@ onUnmounted(() => {
     <div class="graph-toolbar">
       <span class="graph-title">Граф связей</span>
       <div class="graph-controls">
-        <select
-          v-model="selectedLayout"
-          class="layout-select"
-          title="Алгоритм раскладки"
-        >
+        <select v-model="selectedLayout" class="layout-select" title="Алгоритм раскладки">
           <option v-for="layout in layouts" :key="layout.id" :value="layout.id">
             {{ layout.label }}
           </option>
@@ -414,9 +410,7 @@ onUnmounted(() => {
       <span class="legend-item">
         <span class="legend-dot link-center-dot"></span> центр связи
       </span>
-      <span class="legend-item">
-        <span class="legend-dot atom-dot"></span> атом
-      </span>
+      <span class="legend-item"> <span class="legend-dot atom-dot"></span> атом </span>
       <span class="legend-item">
         <span class="legend-line link-start-line"></span>
         <span class="legend-cross">+</span> начало
@@ -425,9 +419,7 @@ onUnmounted(() => {
         <span class="legend-line link-end-line"></span>
         <span class="legend-arrow">&rarr;</span> конец
       </span>
-      <span class="legend-item">
-        <span class="legend-dot unary-dot"></span> ♂/♀
-      </span>
+      <span class="legend-item"> <span class="legend-dot unary-dot"></span> ♂/♀ </span>
     </div>
   </div>
 </template>

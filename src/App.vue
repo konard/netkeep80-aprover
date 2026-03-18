@@ -634,7 +634,14 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <main class="app-main" :class="{ 'with-ast': showAST, 'with-graph': showGraph, 'with-ast-and-graph': showAST && showGraph }">
+    <main
+      class="app-main"
+      :class="{
+        'with-ast': showAST,
+        'with-graph': showGraph,
+        'with-ast-and-graph': showAST && showGraph,
+      }"
+    >
       <div class="panel editor-panel">
         <Editor
           v-model="input"
