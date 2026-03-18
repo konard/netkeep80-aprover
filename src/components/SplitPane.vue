@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, useSlots } from 'vue'
 
 const props = withDefaults(
   defineProps<{
@@ -21,31 +21,34 @@ const emit = defineEmits<{
   (e: 'resize'): void
 }>()
 
+const slots = useSlots()
 const containerRef = ref<HTMLElement | null>(null)
-const sizes = ref<number[]>([])
 const dragging = ref<number | null>(null)
 const startPos = ref(0)
 const startSizes = ref<number[]>([])
 
-function initSizes(slotCount: number) {
-  if (props.initialSizes && props.initialSizes.length === slotCount) {
-    sizes.value = [...props.initialSizes]
-  } else {
-    const equalSize = 100 / slotCount
-    sizes.value = Array(slotCount).fill(equalSize)
-  }
-}
-
 function getPaneCount(): number {
-  if (!containerRef.value) return 0
   let count = 0
-  const children = containerRef.value.children
-  for (let i = 0; i < children.length; i++) {
-    if (children[i].classList.contains('split-pane')) {
-      count++
-    }
+  while (slots[`pane-${count}`]) {
+    count++
   }
   return count
+}
+
+const paneCount = getPaneCount()
+
+function computeInitialSizes(count: number): number[] {
+  if (props.initialSizes && props.initialSizes.length === count) {
+    return [...props.initialSizes]
+  }
+  const equalSize = 100 / count
+  return Array(count).fill(equalSize)
+}
+
+const sizes = ref<number[]>(computeInitialSizes(paneCount))
+
+function initSizes(slotCount: number) {
+  sizes.value = computeInitialSizes(slotCount)
 }
 
 function onMouseDown(index: number, e: MouseEvent) {
@@ -150,25 +153,12 @@ function onTouchEnd() {
   document.removeEventListener('touchend', onTouchEnd)
 }
 
-watch(
-  () => sizes.value.length,
-  () => {
-    nextTick(() => {
-      const count = getPaneCount()
-      if (count > 0 && count !== sizes.value.length) {
-        initSizes(count)
-      }
-    })
-  }
-)
-
 onMounted(() => {
-  nextTick(() => {
-    const count = getPaneCount()
-    if (count > 0) {
-      initSizes(count)
-    }
-  })
+  // Re-check pane count in case slots changed
+  const count = getPaneCount()
+  if (count > 0 && count !== sizes.value.length) {
+    initSizes(count)
+  }
 })
 
 onUnmounted(() => {
