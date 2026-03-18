@@ -18,7 +18,7 @@
  * 4. Further convert to formal notation using stringAnum module
  */
 
-import type { ASTNode, File, Statement } from './ast'
+import type { ASTNode, File } from './ast'
 import {
   makeLoc,
   makeInfinity,
@@ -28,6 +28,8 @@ import {
   makeAbitLit,
   extractLinkChain,
 } from './astHelpers'
+import type { SourceLocation } from './ast'
+import { parseFileLines, fileToMtl } from './utils'
 
 /** Valid abit characters in quaternary notation */
 export const VALID_ABITS = ['0', '1', '[', ']'] as const
@@ -339,64 +341,15 @@ export function parseQuatAnum(content: string, options: QuatAnumOptions = {}): F
     }
   }
 
-  const statements: Statement[] = []
-  const lines = content.split('\n')
-
-  let offset = 0
-  let lineNumber = 1
-
-  const startLoc = makeLoc(1, 1, 0, 1, 1, 0)
-
-  for (const line of lines) {
-    const trimmed = line.trim()
-
-    // Skip comments
-    if (opts.skipComments && trimmed.startsWith('//')) {
-      offset += line.length + 1 // +1 for newline
-      lineNumber++
-      continue
-    }
-
-    // Skip empty lines if configured
-    const cleaned = cleanQuatAnum(line)
-    if (opts.skipEmptyLines && cleaned.length === 0) {
-      offset += line.length + 1
-      lineNumber++
-      continue
-    }
-
-    // Parse the line
-    const expr = parseQuatAnumLine(line, lineNumber, offset)
-
-    const stmtLoc = makeLoc(
-      lineNumber,
-      1,
-      offset,
-      lineNumber,
-      line.length + 1,
-      offset + line.length
-    )
-
-    statements.push({
-      type: 'Statement',
-      expr,
-      loc: stmtLoc,
+  return parseFileLines(
+    content,
+    { skipComments: opts.skipComments, skipEmptyLines: opts.skipEmptyLines },
+    (line, _trimmed) => cleanQuatAnum(line).length === 0,
+    (line, _trimmed, lineNumber, offset) => ({
+      expr: parseQuatAnumLine(line, lineNumber, offset),
+      length: line.length,
     })
-
-    offset += line.length + 1
-    lineNumber++
-  }
-
-  const endLoc = makeLoc(lineNumber, 1, offset, lineNumber, 1, offset)
-
-  return {
-    type: 'File',
-    statements,
-    loc: {
-      start: startLoc.start,
-      end: endLoc.end,
-    },
-  }
+  )
 }
 
 /**
@@ -442,35 +395,20 @@ export function isQuatAnumExpr(node: ASTNode): boolean {
  */
 export function quatAnumFileToMtl(content: string, options: QuatAnumOptions = {}): string {
   const opts = { ...defaultOptions, ...options }
-  const lines = content.split('\n')
-  const mtlLines: string[] = []
 
-  mtlLines.push('// Generated from .anum file (quaternary notation)')
-  mtlLines.push('// Each line represents a quaternary anumber (abit sequence)')
-  mtlLines.push('// Abits: [ = ♂∞, ] = ∞♀, 1 = ♂∞ -> ∞♀, 0 = ∞♀ -> ♂∞')
-  mtlLines.push('')
-
-  for (const line of lines) {
-    const trimmed = line.trim()
-
-    // Preserve comments
-    if (trimmed.startsWith('//')) {
-      mtlLines.push(trimmed)
-      continue
-    }
-
-    // Skip empty lines
-    const cleaned = cleanQuatAnum(line)
-    if (opts.skipEmptyLines && cleaned.length === 0) {
-      continue
-    }
-
-    // Convert to formal notation
-    const formal = quatAnumToFormal(line)
-    mtlLines.push(`${formal}.`)
-  }
-
-  return mtlLines.join('\n')
+  return fileToMtl(
+    content,
+    {
+      skipEmptyLines: opts.skipEmptyLines,
+      headerLines: [
+        '// Generated from .anum file (quaternary notation)',
+        '// Each line represents a quaternary anumber (abit sequence)',
+        '// Abits: [ = ♂∞, ] = ∞♀, 1 = ♂∞ -> ∞♀, 0 = ∞♀ -> ♂∞',
+      ],
+    },
+    (line, _trimmed) => cleanQuatAnum(line).length === 0,
+    line => quatAnumToFormal(line)
+  )
 }
 
 /**

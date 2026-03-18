@@ -29,6 +29,7 @@ import {
 import type { ProofResult, ProverState, AxiomId } from './prover'
 import { AXIOMS } from './prover'
 import { toCanonicalString } from './normalizer'
+import { escapeLabel } from './utils'
 
 /**
  * Export format options
@@ -778,20 +779,6 @@ export function exportToDOT(
   lines.push('}')
 
   return lines.join('\n')
-}
-
-/**
- * Escape special characters for DOT labels
- */
-function escapeLabel(str: string): string {
-  return str
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, '\\n')
-    .replace(/</g, '\\<')
-    .replace(/>/g, '\\>')
-    .replace(/\{/g, '\\{')
-    .replace(/\}/g, '\\}')
 }
 
 /**

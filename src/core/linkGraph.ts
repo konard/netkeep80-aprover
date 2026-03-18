@@ -31,6 +31,7 @@ import {
   isBracketExpr,
 } from './ast'
 import { astToString } from './ast'
+import { escapeLabel } from './utils'
 
 /**
  * Node type in the link graph
@@ -571,18 +572,4 @@ export function linkGraphToDOT(graph: LinkGraph, title?: string): string {
   lines.push('}')
 
   return lines.join('\n')
-}
-
-/**
- * Escape special characters for DOT labels
- */
-function escapeLabel(str: string): string {
-  return str
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, '\\n')
-    .replace(/</g, '\\<')
-    .replace(/>/g, '\\>')
-    .replace(/\{/g, '\\{')
-    .replace(/\}/g, '\\}')
 }
