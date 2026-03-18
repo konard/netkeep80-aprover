@@ -24,6 +24,8 @@ import {
 } from './ast'
 import { parseExpr } from './parser'
 import { normalize, toCanonicalString, astEqual } from './normalizer'
+import type { ProofMetrics, MetricsCollector } from './proofMetrics'
+import { createMetricsCollector } from './proofMetrics'
 
 /** Substitution: maps variable names to AST nodes */
 export type Substitution = Map<string, ASTNode>
@@ -183,6 +185,8 @@ export interface ProofResult {
   /** Hints for failed verification */
   hints?: VerificationHint[]
   substitution?: Substitution
+  /** Proof metrics (steps, axioms, timing, complexity) */
+  metrics?: ProofMetrics
 }
 
 /** Proven equality pair for transitivity/congruence resolution */
@@ -1698,9 +1702,45 @@ export function checkInequality(left: ASTNode, right: ASTNode, state: ProverStat
 }
 
 /**
+ * Attach metrics to a proof result by analyzing the result's proof steps and axioms,
+ * combined with timing data from the metrics collector.
+ */
+function attachMetrics(result: ProofResult, collector: MetricsCollector): ProofResult {
+  // Record steps from proof result
+  if (result.proofSteps) {
+    for (const step of result.proofSteps) {
+      collector.recordStep()
+      if (step.axiom) {
+        collector.recordAxiomUse(step.axiom.id)
+      }
+    }
+  }
+
+  // Record unification attempts from proof steps
+  if (result.proofSteps) {
+    for (const step of result.proofSteps) {
+      if (step.action === 'Унификация') {
+        collector.recordUnificationAttempt(true)
+      }
+    }
+  }
+
+  // Track depth from step count
+  if (result.proofSteps) {
+    collector.recordDepth(result.proofSteps.length)
+  }
+
+  result.metrics = collector.getMetrics()
+  return result
+}
+
+/**
  * Verify a statement
  */
 export function verify(node: ASTNode, state: ProverState): ProofResult {
+  const collector = createMetricsCollector()
+  collector.start()
+
   const normalized = normalize(node)
 
   if (isEqExpr(normalized)) {
@@ -1709,11 +1749,15 @@ export function verify(node: ASTNode, state: ProverState): ProofResult {
     if (result.success) {
       addProvenEquality(state, normalized.left, normalized.right)
     }
-    return result
+    // Collect metrics from result
+    collector.stop()
+    return attachMetrics(result, collector)
   }
 
   if (isNeqExpr(normalized)) {
-    return checkInequality(normalized.left, normalized.right, state)
+    const result = checkInequality(normalized.left, normalized.right, state)
+    collector.stop()
+    return attachMetrics(result, collector)
   }
 
   if (isDefExpr(normalized)) {
@@ -1728,13 +1772,17 @@ export function verify(node: ASTNode, state: ProverState): ProofResult {
           axiom: AXIOMS.A0,
         },
       ]
-      return {
-        success: true,
-        message: `Добавлено определение: ${normalized.name.name}`,
-        steps: ['Definition registered'],
-        proofSteps,
-        appliedAxioms: [AXIOMS.A0],
-      }
+      collector.stop()
+      return attachMetrics(
+        {
+          success: true,
+          message: `Добавлено определение: ${normalized.name.name}`,
+          steps: ['Definition registered'],
+          proofSteps,
+          appliedAxioms: [AXIOMS.A0],
+        },
+        collector
+      )
     }
     const hints: VerificationHint[] = [
       {
@@ -1742,14 +1790,18 @@ export function verify(node: ASTNode, state: ProverState): ProofResult {
         message: 'Имя определения должно быть идентификатором',
       },
     ]
-    return {
-      success: false,
-      message: 'Имя определения должно быть идентификатором',
-      steps: [],
-      proofSteps: [],
-      appliedAxioms: [],
-      hints,
-    }
+    collector.stop()
+    return attachMetrics(
+      {
+        success: false,
+        message: 'Имя определения должно быть идентификатором',
+        steps: [],
+        proofSteps: [],
+        appliedAxioms: [],
+        hints,
+      },
+      collector
+    )
   }
 
   // Handle Link expressions (implications) using Modus Ponens
@@ -1792,13 +1844,17 @@ export function verify(node: ASTNode, state: ProverState): ProofResult {
       })
     }
 
-    return {
-      success: true,
-      message: `Импликация зарегистрирована: (${toCanonicalString(normalized.left)} → ${toCanonicalString(normalized.right)})`,
-      steps: ['Implication registered'],
-      proofSteps,
-      appliedAxioms,
-    }
+    collector.stop()
+    return attachMetrics(
+      {
+        success: true,
+        message: `Импликация зарегистрирована: (${toCanonicalString(normalized.left)} → ${toCanonicalString(normalized.right)})`,
+        steps: ['Implication registered'],
+        proofSteps,
+        appliedAxioms,
+      },
+      collector
+    )
   }
 
   const hints: VerificationHint[] = [
@@ -1808,12 +1864,16 @@ export function verify(node: ASTNode, state: ProverState): ProofResult {
     },
   ]
 
-  return {
-    success: false,
-    message: `Невозможно верифицировать выражение типа: ${node.type}`,
-    steps: [],
-    proofSteps: [],
-    appliedAxioms: [],
-    hints,
-  }
+  collector.stop()
+  return attachMetrics(
+    {
+      success: false,
+      message: `Невозможно верифицировать выражение типа: ${node.type}`,
+      steps: [],
+      proofSteps: [],
+      appliedAxioms: [],
+      hints,
+    },
+    collector
+  )
 }

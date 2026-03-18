@@ -291,6 +291,24 @@ export {
 } from './proofCache'
 
 // ============================================================================
+// Proof Metrics Module - Proof verification metrics and analysis
+// ============================================================================
+export type {
+  ProofComplexity,
+  ProofMetrics,
+  SerializableProofMetrics,
+  MetricsCollector,
+} from './proofMetrics'
+
+export {
+  classifyComplexity,
+  createMetricsCollector,
+  metricsToSerializable,
+  formatMetricsSummary,
+  aggregateMetrics,
+} from './proofMetrics'
+
+// ============================================================================
 // Link Graph Module - Visualization of link formulas as directed graphs
 // ============================================================================
 export type {
