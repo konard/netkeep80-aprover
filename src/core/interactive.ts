@@ -665,7 +665,7 @@ export class ProofSession {
     }
 
     // Save current state to future for redo
-    const currentSnapshot = this.createSnapshot('Estado actual')
+    const currentSnapshot = this.createSnapshot('Текущее состояние')
     this.future.unshift(currentSnapshot)
 
     // Restore previous state

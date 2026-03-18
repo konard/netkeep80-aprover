@@ -34,4 +34,12 @@ export default [
       'no-debugger': 'error',
     },
   },
+
+  {
+    name: 'app/examples-and-experiments',
+    files: ['examples/**/*.ts', 'experiments/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
 ]
