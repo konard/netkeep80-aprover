@@ -79,6 +79,13 @@ export {
 } from './astHelpers'
 
 // ============================================================================
+// Utils Module - Shared utility functions
+// ============================================================================
+export type { FileParseOptions, FileToMtlOptions } from './utils'
+
+export { escapeLabel, parseFileLines, fileToMtl } from './utils'
+
+// ============================================================================
 // Lexer Module - Lexical analysis
 // ============================================================================
 export type { TokenType, Token } from './lexer'

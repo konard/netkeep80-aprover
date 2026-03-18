@@ -13,8 +13,9 @@
  *   "связь" ≡ (((((∞ -> 'с') -> 'в') -> 'я') -> 'з') -> 'ь')
  */
 
-import type { ASTNode, File, Statement } from './ast'
+import type { ASTNode, File } from './ast'
 import { makeLoc, makeInfinity, makeLink, makeStringLit, extractLinkChain } from './astHelpers'
+import { parseFileLines, fileToMtl } from './utils'
 
 /** Error during string anumber parsing */
 export class StringAnumError extends Error {
@@ -95,65 +96,19 @@ export function parseStringAnumLine(
  */
 export function parseStringAnum(content: string, options: StringAnumOptions = {}): File {
   const opts = { ...defaultOptions, ...options }
-  const statements: Statement[] = []
-  const lines = content.split('\n')
 
-  let offset = 0
-  let lineNumber = 1
-
-  const startLoc = makeLoc(1, 1, 0, 1, 1, 0)
-
-  for (const line of lines) {
-    const trimmed = line.trim()
-
-    // Skip comments
-    if (opts.skipComments && trimmed.startsWith('//')) {
-      offset += line.length + 1 // +1 for newline
-      lineNumber++
-      continue
+  return parseFileLines(
+    content,
+    { skipComments: opts.skipComments, skipEmptyLines: opts.skipEmptyLines },
+    (_line, trimmed) => trimmed.length === 0,
+    (line, trimmed, lineNumber, offset) => {
+      const text = opts.lineAsStatement ? trimmed : line
+      return {
+        expr: parseStringAnumLine(text, lineNumber, offset),
+        length: text.length,
+      }
     }
-
-    // Skip empty lines if configured
-    if (opts.skipEmptyLines && trimmed.length === 0) {
-      offset += line.length + 1
-      lineNumber++
-      continue
-    }
-
-    // Parse the line
-    const expr = opts.lineAsStatement
-      ? parseStringAnumLine(trimmed, lineNumber, offset)
-      : parseStringAnumLine(line, lineNumber, offset)
-
-    const stmtLoc = makeLoc(
-      lineNumber,
-      1,
-      offset,
-      lineNumber,
-      (opts.lineAsStatement ? trimmed : line).length + 1,
-      offset + (opts.lineAsStatement ? trimmed : line).length
-    )
-
-    statements.push({
-      type: 'Statement',
-      expr,
-      loc: stmtLoc,
-    })
-
-    offset += line.length + 1
-    lineNumber++
-  }
-
-  const endLoc = makeLoc(lineNumber, 1, offset, lineNumber, 1, offset)
-
-  return {
-    type: 'File',
-    statements,
-    loc: {
-      start: startLoc.start,
-      end: endLoc.end,
-    },
-  }
+  )
 }
 
 /**
@@ -207,33 +162,19 @@ export function stringAnumToFormal(str: string): string {
  */
 export function stringAnumFileToMtl(content: string, options: StringAnumOptions = {}): string {
   const opts = { ...defaultOptions, ...options }
-  const lines = content.split('\n')
-  const mtlLines: string[] = []
 
-  mtlLines.push('// Generated from .astr file')
-  mtlLines.push('// Each line represents a string anumber (left-associative chain)')
-  mtlLines.push('')
-
-  for (const line of lines) {
-    const trimmed = line.trim()
-
-    // Preserve comments
-    if (trimmed.startsWith('//')) {
-      mtlLines.push(trimmed)
-      continue
-    }
-
-    // Skip empty lines
-    if (opts.skipEmptyLines && trimmed.length === 0) {
-      continue
-    }
-
-    // Convert to formal notation
-    const formal = stringAnumToFormal(opts.lineAsStatement ? trimmed : line)
-    mtlLines.push(`${formal}.`)
-  }
-
-  return mtlLines.join('\n')
+  return fileToMtl(
+    content,
+    {
+      skipEmptyLines: opts.skipEmptyLines,
+      headerLines: [
+        '// Generated from .astr file',
+        '// Each line represents a string anumber (left-associative chain)',
+      ],
+    },
+    (_line, trimmed) => trimmed.length === 0,
+    line => stringAnumToFormal(opts.lineAsStatement ? line.trim() : line)
+  )
 }
 
 /**
