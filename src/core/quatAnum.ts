@@ -18,8 +18,16 @@
  * 4. Further convert to formal notation using stringAnum module
  */
 
-import type { ASTNode, File, Statement, LinkExpr, AbitLitExpr } from './ast'
-import { makeLoc, makeInfinity, makeLink, makeMale, makeFemale, makeAbitLit } from './astHelpers'
+import type { ASTNode, File, Statement } from './ast'
+import {
+  makeLoc,
+  makeInfinity,
+  makeLink,
+  makeMale,
+  makeFemale,
+  makeAbitLit,
+  extractLinkChain,
+} from './astHelpers'
 
 /** Valid abit characters in quaternary notation */
 export const VALID_ABITS = ['0', '1', '[', ']'] as const
@@ -410,49 +418,12 @@ export function parseQuatAnumExpr(content: string): ASTNode {
  * only valid abit characters are present.
  */
 export function toQuatAnum(node: ASTNode): string | null {
-  const chars: string[] = []
-
-  function traverse(n: ASTNode): boolean {
-    if (n.type === 'Infinity') {
-      return true
+  return extractLinkChain(node, 'AbitLit', value => {
+    for (const char of value) {
+      if (!isValidAbit(char)) return false
     }
-
-    if (n.type === 'Link') {
-      const link = n as LinkExpr
-      if (!traverse(link.left)) return false
-      if (link.right.type === 'AbitLit') {
-        const value = (link.right as AbitLitExpr).value
-        // All characters in AbitLit must be valid abits
-        for (const char of value) {
-          if (!isValidAbit(char)) {
-            return false
-          }
-        }
-        chars.push(value)
-        return true
-      }
-      return false
-    }
-
-    // Single AbitLit at the end (edge case)
-    if (n.type === 'AbitLit') {
-      const value = (n as AbitLitExpr).value
-      for (const char of value) {
-        if (!isValidAbit(char)) {
-          return false
-        }
-      }
-      chars.push(value)
-      return true
-    }
-
-    return false
-  }
-
-  if (traverse(node)) {
-    return chars.join('')
-  }
-  return null
+    return true
+  })
 }
 
 /**

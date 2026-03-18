@@ -18,6 +18,7 @@ import type {
   AbitLitExpr,
   StringLitExpr,
 } from './ast'
+import { isLinkExpr, isInfinityExpr } from './ast'
 
 /** Create source location from start/end positions */
 export function makeLoc(
@@ -84,4 +85,53 @@ export function makeAbitLit(value: string, loc?: SourceLocation): AbitLitExpr {
 /** Create string literal node */
 export function makeStringLit(value: string, loc?: SourceLocation): StringLitExpr {
   return { type: 'StringLit', value, loc }
+}
+
+/**
+ * Extract values from a left-associative link chain (∞ -> lit₁ -> lit₂ -> ... -> litₙ).
+ *
+ * The chain must start from ∞ and each right-side node must match `literalType`.
+ * An optional `validate` callback can reject individual literal values.
+ *
+ * Returns the collected literal values joined as a string, or null if
+ * the AST doesn't represent a valid chain of the expected literal type.
+ */
+export function extractLinkChain(
+  node: ASTNode,
+  literalType: string,
+  validate?: (value: string) => boolean
+): string | null {
+  const parts: string[] = []
+
+  function traverse(n: ASTNode): boolean {
+    if (isInfinityExpr(n)) {
+      return true
+    }
+
+    if (isLinkExpr(n)) {
+      if (!traverse(n.left)) return false
+      if (n.right.type === literalType) {
+        const value = (n.right as { value: string }).value
+        if (validate && !validate(value)) return false
+        parts.push(value)
+        return true
+      }
+      return false
+    }
+
+    // Single literal at the end (edge case)
+    if (n.type === literalType) {
+      const value = (n as { value: string }).value
+      if (validate && !validate(value)) return false
+      parts.push(value)
+      return true
+    }
+
+    return false
+  }
+
+  if (traverse(node)) {
+    return parts.join('')
+  }
+  return null
 }

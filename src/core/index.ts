@@ -75,6 +75,7 @@ export {
   makeFemale,
   makeAbitLit,
   makeStringLit,
+  extractLinkChain,
 } from './astHelpers'
 
 // ============================================================================

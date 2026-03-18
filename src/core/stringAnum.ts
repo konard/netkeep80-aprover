@@ -13,8 +13,8 @@
  *   "связь" ≡ (((((∞ -> 'с') -> 'в') -> 'я') -> 'з') -> 'ь')
  */
 
-import type { ASTNode, File, Statement, LinkExpr, StringLitExpr } from './ast'
-import { makeLoc, makeInfinity, makeLink, makeStringLit } from './astHelpers'
+import type { ASTNode, File, Statement } from './ast'
+import { makeLoc, makeInfinity, makeLink, makeStringLit, extractLinkChain } from './astHelpers'
 
 /** Error during string anumber parsing */
 export class StringAnumError extends Error {
@@ -172,36 +172,7 @@ export function parseStringAnumExpr(content: string): ASTNode {
  * Returns null if the AST doesn't represent a valid string anumber.
  */
 export function toStringAnum(node: ASTNode): string | null {
-  const parts: string[] = []
-
-  function traverse(n: ASTNode): boolean {
-    if (n.type === 'Infinity') {
-      return true
-    }
-
-    if (n.type === 'Link') {
-      const link = n as LinkExpr
-      if (!traverse(link.left)) return false
-      if (link.right.type === 'StringLit') {
-        parts.push((link.right as StringLitExpr).value)
-        return true
-      }
-      return false
-    }
-
-    // Single StringLit at the end (edge case)
-    if (n.type === 'StringLit') {
-      parts.push((n as StringLitExpr).value)
-      return true
-    }
-
-    return false
-  }
-
-  if (traverse(node)) {
-    return parts.join('')
-  }
-  return null
+  return extractLinkChain(node, 'StringLit')
 }
 
 /**
