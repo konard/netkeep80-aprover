@@ -32,6 +32,7 @@ import {
 } from './core/quatAnum'
 import InteractiveProver from './components/InteractiveProver.vue'
 import ProofExport from './components/ProofExport.vue'
+import LinkGraphViewer from './components/LinkGraphViewer.vue'
 import type { ASTNode } from './core/ast'
 import type { ProverState, ProofStep } from './core/prover'
 
@@ -67,6 +68,7 @@ const proverState = ref<ProverState | null>(null)
 
 // Panel visibility state
 const showAST = ref(true)
+const showGraph = ref(false)
 
 // Highlighted source location (from AST node hover)
 const highlightedLoc = ref<SourceLocation | null>(null)
@@ -99,6 +101,10 @@ const appVersion = __APP_VERSION__
 
 const toggleAST = () => {
   showAST.value = !showAST.value
+}
+
+const toggleGraph = () => {
+  showGraph.value = !showGraph.value
 }
 
 // Toggle interactive proof mode
@@ -526,6 +532,15 @@ onUnmounted(() => {
           {{ showAST ? 'Hide AST' : 'Show AST' }}
         </button>
         <button
+          class="toggle-btn graph-btn-toggle"
+          :class="{ active: showGraph }"
+          :disabled="!ast || ast.statements.length === 0"
+          title="Визуализация графа связей"
+          @click="toggleGraph"
+        >
+          {{ showGraph ? 'Hide Graph' : 'Graph' }}
+        </button>
+        <button
           class="toggle-btn interactive-btn"
           :class="{ active: showInteractive }"
           :disabled="!ast || ast.statements.length === 0"
@@ -619,7 +634,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <main class="app-main" :class="{ 'with-ast': showAST }">
+    <main class="app-main" :class="{ 'with-ast': showAST, 'with-graph': showGraph, 'with-ast-and-graph': showAST && showGraph }">
       <div class="panel editor-panel">
         <Editor
           v-model="input"
@@ -639,6 +654,10 @@ onUnmounted(() => {
           :highlighted-node-loc="highlightedNodeLoc"
           @node-hover="handleNodeHover"
         />
+      </div>
+
+      <div v-if="showGraph" class="panel graph-panel">
+        <LinkGraphViewer :ast="ast" />
       </div>
 
       <div class="panel results-panel">
@@ -925,6 +944,17 @@ body {
   cursor: not-allowed;
 }
 
+.toggle-btn.graph-btn-toggle.active {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border-color: #3b82f6;
+}
+
+.toggle-btn.graph-btn-toggle:not(:disabled):hover {
+  background: #2563eb;
+  color: white;
+}
+
 .toggle-btn.interactive-btn {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -952,6 +982,14 @@ body {
   grid-template-columns: 1fr 1fr 1fr;
 }
 
+.app-main.with-graph {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.app-main.with-ast-and-graph {
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+}
+
 @media (max-width: 1200px) {
   .app-main.with-ast {
     grid-template-columns: 1fr 1fr;
@@ -961,15 +999,38 @@ body {
     grid-column: span 2;
     max-height: 300px;
   }
+
+  .app-main.with-graph {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .app-main.with-graph .graph-panel {
+    grid-column: span 2;
+    max-height: 400px;
+  }
+
+  .app-main.with-ast-and-graph {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .app-main.with-ast-and-graph .ast-panel,
+  .app-main.with-ast-and-graph .graph-panel {
+    max-height: 300px;
+  }
 }
 
 @media (max-width: 768px) {
   .app-main,
-  .app-main.with-ast {
+  .app-main.with-ast,
+  .app-main.with-graph,
+  .app-main.with-ast-and-graph {
     grid-template-columns: 1fr;
   }
 
-  .app-main.with-ast .ast-panel {
+  .app-main.with-ast .ast-panel,
+  .app-main.with-graph .graph-panel,
+  .app-main.with-ast-and-graph .ast-panel,
+  .app-main.with-ast-and-graph .graph-panel {
     grid-column: span 1;
   }
 

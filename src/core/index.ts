@@ -267,3 +267,21 @@ export {
   setProofCacheMaxSize,
   generateStateSignature,
 } from './proofCache'
+
+// ============================================================================
+// Link Graph Module - Visualization of link formulas as directed graphs
+// ============================================================================
+export type {
+  LinkGraphNodeType,
+  LinkGraphNode,
+  LinkGraphEdgeType,
+  LinkGraphEdge,
+  LinkGraph,
+} from './linkGraph'
+
+export {
+  projectToGraph,
+  projectStatementsToGraph,
+  toCytoscapeElements,
+  linkGraphToDOT,
+} from './linkGraph'
