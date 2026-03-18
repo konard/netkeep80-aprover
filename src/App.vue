@@ -33,6 +33,7 @@ import {
 import InteractiveProver from './components/InteractiveProver.vue'
 import ProofExport from './components/ProofExport.vue'
 import LinkGraphViewer from './components/LinkGraphViewer.vue'
+import SplitPane from './components/SplitPane.vue'
 import type { ASTNode } from './core/ast'
 import type { ProverState, ProofStep } from './core/prover'
 
@@ -98,6 +99,13 @@ const interactiveGoals = ref<ASTNode[]>([])
 
 // Application version from package.json (injected by Vite at build time)
 const appVersion = __APP_VERSION__
+
+const splitPaneRef = ref<InstanceType<typeof SplitPane> | null>(null)
+
+const handleSplitResize = () => {
+  // Dispatch a resize event so components like Cytoscape can update
+  window.dispatchEvent(new Event('resize'))
+}
 
 const toggleAST = () => {
   showAST.value = !showAST.value
@@ -634,43 +642,160 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <main
-      class="app-main"
-      :class="{
-        'with-ast': showAST,
-        'with-graph': showGraph,
-        'with-ast-and-graph': showAST && showGraph,
-      }"
-    >
-      <div class="panel editor-panel">
-        <Editor
-          v-model="input"
-          :highlighted-loc="highlightedLoc"
-          :error-loc="errorLocation"
-          :file-name="currentFileName || undefined"
-          :is-drag-over="isDragOver"
-          @file-drop="handleFileDrop"
-          @cursor-position="handleCursorPosition"
-        />
-      </div>
+    <main class="app-main">
+      <!-- Layout: Editor + AST + Graph + Results (all panels visible) -->
+      <SplitPane
+        v-if="showAST && showGraph"
+        key="ast-graph"
+        ref="splitPaneRef"
+        direction="horizontal"
+        :min-size="150"
+        :initial-sizes="[25, 25, 25, 25]"
+        @resize="handleSplitResize"
+      >
+        <template #pane-0>
+          <div class="panel editor-panel">
+            <Editor
+              v-model="input"
+              :highlighted-loc="highlightedLoc"
+              :error-loc="errorLocation"
+              :file-name="currentFileName || undefined"
+              :is-drag-over="isDragOver"
+              @file-drop="handleFileDrop"
+              @cursor-position="handleCursorPosition"
+            />
+          </div>
+        </template>
+        <template #pane-1>
+          <div class="panel ast-panel">
+            <ASTViewer
+              :ast="ast"
+              :error="error"
+              :highlighted-node-loc="highlightedNodeLoc"
+              @node-hover="handleNodeHover"
+            />
+          </div>
+        </template>
+        <template #pane-2>
+          <div class="panel graph-panel">
+            <LinkGraphViewer :ast="ast" />
+          </div>
+        </template>
+        <template #pane-3>
+          <div class="panel results-panel">
+            <ErrorPanel :error="error" />
+            <ProverPanel :results="results" :has-error="!!error" />
+          </div>
+        </template>
+      </SplitPane>
 
-      <div v-if="showAST" class="panel ast-panel">
-        <ASTViewer
-          :ast="ast"
-          :error="error"
-          :highlighted-node-loc="highlightedNodeLoc"
-          @node-hover="handleNodeHover"
-        />
-      </div>
+      <!-- Layout: Editor + AST + Results -->
+      <SplitPane
+        v-else-if="showAST"
+        key="ast-only"
+        ref="splitPaneRef"
+        direction="horizontal"
+        :min-size="150"
+        :initial-sizes="[35, 30, 35]"
+        @resize="handleSplitResize"
+      >
+        <template #pane-0>
+          <div class="panel editor-panel">
+            <Editor
+              v-model="input"
+              :highlighted-loc="highlightedLoc"
+              :error-loc="errorLocation"
+              :file-name="currentFileName || undefined"
+              :is-drag-over="isDragOver"
+              @file-drop="handleFileDrop"
+              @cursor-position="handleCursorPosition"
+            />
+          </div>
+        </template>
+        <template #pane-1>
+          <div class="panel ast-panel">
+            <ASTViewer
+              :ast="ast"
+              :error="error"
+              :highlighted-node-loc="highlightedNodeLoc"
+              @node-hover="handleNodeHover"
+            />
+          </div>
+        </template>
+        <template #pane-2>
+          <div class="panel results-panel">
+            <ErrorPanel :error="error" />
+            <ProverPanel :results="results" :has-error="!!error" />
+          </div>
+        </template>
+      </SplitPane>
 
-      <div v-if="showGraph" class="panel graph-panel">
-        <LinkGraphViewer :ast="ast" />
-      </div>
+      <!-- Layout: Editor + Graph + Results -->
+      <SplitPane
+        v-else-if="showGraph"
+        key="graph-only"
+        ref="splitPaneRef"
+        direction="horizontal"
+        :min-size="150"
+        :initial-sizes="[35, 30, 35]"
+        @resize="handleSplitResize"
+      >
+        <template #pane-0>
+          <div class="panel editor-panel">
+            <Editor
+              v-model="input"
+              :highlighted-loc="highlightedLoc"
+              :error-loc="errorLocation"
+              :file-name="currentFileName || undefined"
+              :is-drag-over="isDragOver"
+              @file-drop="handleFileDrop"
+              @cursor-position="handleCursorPosition"
+            />
+          </div>
+        </template>
+        <template #pane-1>
+          <div class="panel graph-panel">
+            <LinkGraphViewer :ast="ast" />
+          </div>
+        </template>
+        <template #pane-2>
+          <div class="panel results-panel">
+            <ErrorPanel :error="error" />
+            <ProverPanel :results="results" :has-error="!!error" />
+          </div>
+        </template>
+      </SplitPane>
 
-      <div class="panel results-panel">
-        <ErrorPanel :error="error" />
-        <ProverPanel :results="results" :has-error="!!error" />
-      </div>
+      <!-- Layout: Editor + Results (no optional panels) -->
+      <SplitPane
+        v-else
+        key="basic"
+        ref="splitPaneRef"
+        direction="horizontal"
+        :min-size="150"
+        :initial-sizes="[50, 50]"
+        @resize="handleSplitResize"
+      >
+        <template #pane-0>
+          <div class="panel editor-panel">
+            <Editor
+              v-model="input"
+              :highlighted-loc="highlightedLoc"
+              :error-loc="errorLocation"
+              :file-name="currentFileName || undefined"
+              :is-drag-over="isDragOver"
+              @file-drop="handleFileDrop"
+              @cursor-position="handleCursorPosition"
+            />
+          </div>
+        </template>
+        <template #pane-1>
+          <div class="panel results-panel">
+            <ErrorPanel :error="error" />
+            <ProverPanel :results="results" :has-error="!!error" />
+          </div>
+        </template>
+      </SplitPane>
     </main>
 
     <footer class="app-footer">
@@ -713,10 +838,10 @@ body {
 .app-container {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  max-width: 1800px;
-  margin: 0 auto;
+  height: 100vh;
+  width: 100%;
   padding: 0.5rem;
+  overflow: hidden;
 }
 
 .app-header {
@@ -978,73 +1103,14 @@ body {
 }
 
 .app-main {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
+  display: flex;
+  gap: 0;
   flex: 1;
   min-height: 0;
-}
-
-.app-main.with-ast {
-  grid-template-columns: 1fr 1fr 1fr;
-}
-
-.app-main.with-graph {
-  grid-template-columns: 1fr 1fr 1fr;
-}
-
-.app-main.with-ast-and-graph {
-  grid-template-columns: 1fr 1fr 1fr 1fr;
-}
-
-@media (max-width: 1200px) {
-  .app-main.with-ast {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .app-main.with-ast .ast-panel {
-    grid-column: span 2;
-    max-height: 300px;
-  }
-
-  .app-main.with-graph {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .app-main.with-graph .graph-panel {
-    grid-column: span 2;
-    max-height: 400px;
-  }
-
-  .app-main.with-ast-and-graph {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .app-main.with-ast-and-graph .ast-panel,
-  .app-main.with-ast-and-graph .graph-panel {
-    max-height: 300px;
-  }
+  overflow: hidden;
 }
 
 @media (max-width: 768px) {
-  .app-main,
-  .app-main.with-ast,
-  .app-main.with-graph,
-  .app-main.with-ast-and-graph {
-    grid-template-columns: 1fr;
-  }
-
-  .app-main.with-ast .ast-panel,
-  .app-main.with-graph .graph-panel,
-  .app-main.with-ast-and-graph .ast-panel,
-  .app-main.with-ast-and-graph .graph-panel {
-    grid-column: span 1;
-  }
-
-  .panel {
-    max-height: 400px;
-  }
-
   .app-header {
     flex-wrap: wrap;
     gap: 0.5rem;
@@ -1064,7 +1130,9 @@ body {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border-color);
-  min-height: 400px;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .app-footer {

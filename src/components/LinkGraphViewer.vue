@@ -349,11 +349,31 @@ watch(
 // Watch layout changes
 watch(selectedLayout, handleLayoutChange)
 
+// ResizeObserver to re-fit graph when container size changes
+const resizeObserver = ref<ResizeObserver | null>(null)
+
 onMounted(() => {
-  nextTick(() => renderGraph())
+  nextTick(() => {
+    renderGraph()
+
+    // Watch for container resize and re-fit graph
+    if (containerRef.value) {
+      resizeObserver.value = new ResizeObserver(() => {
+        if (cyInstance.value) {
+          cyInstance.value.resize()
+          cyInstance.value.fit(undefined, 30)
+        }
+      })
+      resizeObserver.value.observe(containerRef.value)
+    }
+  })
 })
 
 onUnmounted(() => {
+  if (resizeObserver.value) {
+    resizeObserver.value.disconnect()
+    resizeObserver.value = null
+  }
   if (cyInstance.value) {
     cyInstance.value.destroy()
     cyInstance.value = null
