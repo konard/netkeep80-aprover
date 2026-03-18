@@ -175,7 +175,10 @@ export {
 // ============================================================================
 // String Aнumber Module - String aнumber (.astr) support
 // ============================================================================
+export type { StringAnumOptions, ConversionStep, StringAnumStats } from './stringAnum'
+
 export {
+  StringAnumError,
   parseStringAnumLine,
   parseStringAnum,
   parseStringAnumExpr,
@@ -190,7 +193,20 @@ export {
 // ============================================================================
 // Quaternary Aнumber Module - Quaternary aнumber (.anum) support
 // ============================================================================
+export type {
+  AbitChar,
+  QuatAnumOptions,
+  ParsedAbit,
+  ParsedContext,
+  ValidationResult,
+  QuatConversionStep,
+  QuatAnumStats,
+} from './quatAnum'
+
 export {
+  VALID_ABITS,
+  ABIT_DEFINITIONS,
+  QuatAnumError,
   isValidAbit,
   validateQuatAnum,
   cleanQuatAnum,
@@ -211,9 +227,13 @@ export {
 // ============================================================================
 // File I/O Module - File operations
 // ============================================================================
+export type { FileMetadata, ExportResult, SupportedExtension } from './fileIO'
+
 export {
+  SUPPORTED_EXTENSIONS,
   readFileContent,
   isSupportedFile,
+  isMtlFile,
   getFileExtension,
   getFilePreview,
   getRecentFiles,
@@ -224,6 +244,8 @@ export {
   loadAutosave,
   clearAutosave,
   formatResultsForExport,
+  formatAstForExport,
+  generateMtlFromAst,
   downloadFile,
   openFileDialog,
 } from './fileIO'

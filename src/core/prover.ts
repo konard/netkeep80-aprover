@@ -1817,12 +1817,3 @@ export function verify(node: ASTNode, state: ProverState): ProofResult {
     hints,
   }
 }
-
-/**
- * Verify all statements in input
- * Note: Use parse() from parser.ts and verify() separately in browser
- */
-export function verifyAll(_input: string): { results: ProofResult[]; state: ProverState } {
-  // Import is handled by caller in browser context
-  throw new Error('verifyAll not available - use parse() and verify() separately')
-}

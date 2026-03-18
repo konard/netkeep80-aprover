@@ -128,7 +128,7 @@ docs/mts/
 
 **Текущий статус:** Фаза 6 — Реализован модуль кэширования доказательств (этап 6.1).
 
-## Программный API (v0.9.0)
+## Программный API (v0.8.0)
 
 aprover можно использовать как библиотеку. Полная документация доступна в [docs/API.md](docs/API.md).
 
@@ -159,6 +159,10 @@ console.log(result.success ? 'Доказано!' : 'Не доказано')
 | `src/core/prover.ts` | Ядро прувера и система аксиом |
 | `src/core/interactive.ts` | Интерактивный режим доказательства |
 | `src/core/proofExport.ts` | Экспорт доказательств |
+| `src/core/proofCache.ts` | Кэширование результатов доказательств |
+| `src/core/fileIO.ts` | Файловые операции (загрузка, сохранение, история) |
+| `src/core/stringAnum.ts` | Парсер строковых ачисел (.astr) |
+| `src/core/quatAnum.ts` | Парсер четверичных ачисел (.anum) |
 | `src/core/index.ts` | Единая точка входа для библиотеки |
 
 ### Примеры использования
@@ -575,30 +579,31 @@ aprover/
 │       └── deploy.yml       # GitHub Pages
 ├── docs/
 │   ├── mts/                 # Документация МТС
-│   │   ├── 00-introduction.md
-│   │   ├── 01-ontology-of-distinction.md
-│   │   ├── ...
-│   │   └── specification-v0.1.md
-│   └── PHASE1-PLAN.md       # План первой фазы
+│   │   ├── README.md
+│   │   ├── 01-foundations/   # Фундаментальные основы
+│   │   ├── 02-axioms/       # Система аксиом
+│   │   ├── 03-notations/    # Нотации
+│   │   ├── 04-logic/        # Логика и вычисления
+│   │   ├── 05-prover/       # Архитектура прувера
+│   │   ├── 06-philosophy/   # Философия
+│   │   ├── specification/   # Спецификации
+│   │   └── archive/         # Архив
+│   ├── API.md               # Документация API
+│   └── PHASE1-6-PLAN.md     # Планы фаз разработки
 ├── src/
 │   ├── core/
+│   │   ├── ast.ts           # Типы AST и type guards
 │   │   ├── lexer.ts         # Лексический анализатор
 │   │   ├── parser.ts        # Синтаксический анализатор
-│   │   ├── ast.ts           # Типы AST
 │   │   ├── normalizer.ts    # Нормализация и десахаризация
 │   │   ├── prover.ts        # Ядро прувера (унификация, modus ponens)
 │   │   ├── interactive.ts   # Интерактивный режим доказательства
 │   │   ├── proofExport.ts   # Экспорт доказательств (LaTeX, Text, JSON, DOT)
+│   │   ├── proofCache.ts    # Кэширование результатов доказательств
 │   │   ├── fileIO.ts        # Файловые операции (загрузка, сохранение, история)
 │   │   ├── stringAnum.ts    # Парсер строковых ачисел (.astr)
-│   │   └── quatAnum.ts      # Парсер четверичных ачисел (.anum)
-│   ├── components/
-│   │   ├── Editor.vue       # Редактор кода с подсветкой синтаксиса
-│   │   ├── ASTViewer.vue    # Визуализация AST в виде дерева
-│   │   ├── ProverPanel.vue  # Панель результатов верификации
-│   │   ├── ErrorPanel.vue   # Панель ошибок парсинга
-│   │   ├── InteractiveProver.vue  # Интерактивный режим доказательства
-│   │   └── ProofExport.vue  # Компонент экспорта доказательств
+│   │   ├── quatAnum.ts      # Парсер четверичных ачисел (.anum)
+│   │   └── index.ts         # Единая точка входа для библиотеки
 │   ├── App.vue              # Главный компонент приложения
 │   └── main.ts
 ├── tests/
@@ -609,6 +614,7 @@ aprover/
 │   │   ├── prover.test.ts
 │   │   ├── interactive.test.ts
 │   │   ├── proofExport.test.ts
+│   │   ├── proofCache.test.ts
 │   │   ├── fileIO.test.ts
 │   │   ├── stringAnum.test.ts
 │   │   └── quatAnum.test.ts
@@ -617,9 +623,9 @@ aprover/
 │   └── e2e/
 │       └── editor.spec.ts
 ├── examples/
-│   ├── basic.mtl            # Примеры файлов МТС (формальная нотация)
-│   ├── basic.astr           # Примеры строковых ачисел
-│   └── basic.anum           # Примеры четверичных ачисел
+│   ├── library-usage.ts     # Базовое использование прувера
+│   ├── interactive-proof.ts # Интерактивный режим
+│   └── proof-export.ts      # Экспорт в различные форматы
 ├── index.html
 ├── package.json
 ├── tsconfig.json
